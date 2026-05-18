@@ -132,6 +132,108 @@ export function passwordSetupEmail(opts: {
   return { subject, text, html };
 }
 
+/* ── Task assignment email (to the assignee) ──────────────────── */
+
+export function taskAssignmentEmail(opts: {
+  to: string;
+  assigneeName: string;
+  taskTitle: string;
+  taskDescription?: string;
+  priority: string;
+  dueDate?: string | null;
+  assignedBy: { name: string; email: string };
+  appUrl: string;
+  isReassignment?: boolean;
+}): { subject: string; text: string; html: string } {
+  const greeting = opts.assigneeName ? `Hi ${opts.assigneeName.split(" ")[0]},` : "Hi,";
+  const headline = opts.isReassignment
+    ? "A task was reassigned to you"
+    : "You have a new task";
+
+  const subject = opts.isReassignment
+    ? `Reassigned: ${opts.taskTitle}`
+    : `New task: ${opts.taskTitle}`;
+
+  const dueLine = opts.dueDate ? `Due ${opts.dueDate}` : "No due date";
+  const text = [
+    greeting,
+    "",
+    opts.isReassignment
+      ? `${opts.assignedBy.name} reassigned a task to you.`
+      : `${opts.assignedBy.name} assigned a new task to you.`,
+    "",
+    `Title:    ${opts.taskTitle}`,
+    `Priority: ${opts.priority}`,
+    `${dueLine}`,
+    opts.taskDescription ? `\n${opts.taskDescription}` : "",
+    "",
+    `Open it in your dashboard: ${opts.appUrl}/my-tasks`,
+    "",
+    "— KubeGraf Internal Time Sheet",
+  ].filter(Boolean).join("\n");
+
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;line-height:1.5;max-width:560px;margin:0 auto;padding:24px;">
+      <div style="border:1px solid #e5e7eb;border-radius:12px;padding:32px;background:#fff;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
+          <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#ffd486,#ffa340);display:inline-flex;align-items:center;justify-content:center;color:#000;font-weight:700;">K</div>
+          <div>
+            <div style="font-weight:600;font-size:15px;color:#111;">KubeGraf</div>
+            <div style="font-size:11px;color:#6b7280;letter-spacing:0.12em;text-transform:uppercase;">Internal Time Sheet</div>
+          </div>
+        </div>
+
+        <h2 style="margin:0 0 10px 0;font-size:22px;font-weight:600;color:#111;">${headline}</h2>
+        <p style="margin:0 0 8px 0;color:#374151;">${greeting}</p>
+        <p style="margin:0 0 24px 0;color:#374151;">
+          <strong>${escapeHtml(opts.assignedBy.name)}</strong>
+          ${opts.isReassignment ? "reassigned" : "assigned"} a task to you.
+        </p>
+
+        <div style="border:1px solid #f3f4f6;border-radius:10px;padding:16px 18px;margin:0 0 24px 0;background:#fafafa;">
+          <div style="font-weight:600;color:#111;font-size:16px;margin-bottom:6px;">${escapeHtml(opts.taskTitle)}</div>
+          ${
+            opts.taskDescription
+              ? `<div style="color:#4b5563;font-size:13px;margin-bottom:12px;white-space:pre-wrap;">${escapeHtml(opts.taskDescription)}</div>`
+              : ""
+          }
+          <table style="border-collapse:collapse;font-size:12px;color:#6b7280;">
+            <tr><td style="padding:2px 12px 2px 0;">Priority</td><td style="color:#111;">${escapeHtml(opts.priority)}</td></tr>
+            <tr><td style="padding:2px 12px 2px 0;">${opts.dueDate ? "Due" : "Due date"}</td><td style="color:#111;">${escapeHtml(opts.dueDate || "—")}</td></tr>
+            <tr><td style="padding:2px 12px 2px 0;">Assigned by</td><td style="color:#111;">${escapeHtml(opts.assignedBy.name)} &lt;${escapeHtml(opts.assignedBy.email)}&gt;</td></tr>
+          </table>
+        </div>
+
+        <p style="margin:0 0 28px 0;">
+          <a href="${opts.appUrl}/my-tasks"
+             style="display:inline-block;padding:11px 22px;background:#ffa340;color:#111;font-weight:600;
+                    text-decoration:none;border-radius:8px;font-size:14px;">
+            Open my tasks
+          </a>
+        </p>
+
+        <hr style="border:none;border-top:1px solid #f3f4f6;margin:20px 0;" />
+        <p style="margin:0;color:#9ca3af;font-size:11px;">
+          You're receiving this because a workspace admin assigned a task to you in KubeGraf Internal Time Sheet.
+        </p>
+      </div>
+      <p style="text-align:center;margin:16px 0 0 0;color:#9ca3af;font-size:11px;">
+        KubeGraf · Internal use only
+      </p>
+    </div>
+  `;
+  return { subject, text, html };
+}
+
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /* ── Generic admin-notification email ─────────────────────────── */
 
 export function adminNotifyEmail(opts: {

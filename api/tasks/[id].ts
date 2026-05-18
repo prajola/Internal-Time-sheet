@@ -14,8 +14,8 @@ import {
   notFound,
   methodNotAllowed,
 } from "../_lib/helpers.js";
-import { notifyAdmin } from "../_lib/notify.js";
-import type { Task, TaskPriority, TaskStatus } from "../_lib/types.js";
+import { notifyAdmin, notifyAssignee } from "../_lib/notify.js";
+import type { Task, TaskPriority, TaskStatus, User } from "../_lib/types.js";
 
 interface PatchBody {
   title?: string;
@@ -59,6 +59,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const next: Task = { ...t, updatedAt: nowIso() };
     const diff: Record<string, string> = {};
 
+    // Track whether the assignee actually changed so we know whether to
+    // send the assignment email (and to whom).
+    let newAssignee: User | null = null;
+    let assigneeChanged = false;
+
     // Employees can only flip status; admins can edit everything.
     if (isAdmin) {
       if (typeof body.title === "string" && body.title.trim()) {
@@ -70,12 +75,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         diff.description = "updated";
       }
       if (body.assigneeId !== undefined) {
-        if (body.assigneeId) {
-          const a = await findUserById(body.assigneeId);
-          if (!a) return badRequest(res, "assigneeId does not match any user");
+        const requested = body.assigneeId || null;
+        if (requested !== t.assigneeId) {
+          if (requested) {
+            const a = await findUserById(requested);
+            if (!a) return badRequest(res, "assigneeId does not match any user");
+            newAssignee = a;
+          }
+          diff.assignee = `${t.assigneeId ?? "—"} → ${requested ?? "—"}`;
+          next.assigneeId = requested;
+          assigneeChanged = true;
         }
-        diff.assignee = `${t.assigneeId ?? "—"} → ${body.assigneeId ?? "—"}`;
-        next.assigneeId = body.assigneeId;
       }
       if (body.priority) {
         diff.priority = `${t.priority} → ${body.priority}`;
@@ -96,10 +106,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await upsertTask(next);
 
+    // Notify the new assignee (if any) that they own this task now.
+    let assigneeNotified = false;
+    if (assigneeChanged && newAssignee) {
+      await notifyAssignee({
+        task: next,
+        assignee: newAssignee,
+        assignedBy: me,
+        isReassignment: true,
+      });
+      assigneeNotified = true;
+    }
+
     await notifyAdmin({
       subject: "Task updated",
       summary: `${me.name} updated task "${t.title}".`,
-      details: { Task: t.title, ...diff },
+      details: {
+        Task: t.title,
+        ...diff,
+        ...(assigneeChanged ? { "Assignee notified": assigneeNotified ? "yes" : "no" } : {}),
+      },
       byUser: me,
     });
 

@@ -13,8 +13,8 @@ import {
   badRequest,
   methodNotAllowed,
 } from "../_lib/helpers.js";
-import { notifyAdmin } from "../_lib/notify.js";
-import type { Task, TaskPriority, TaskStatus } from "../_lib/types.js";
+import { notifyAdmin, notifyAssignee } from "../_lib/notify.js";
+import type { Task, TaskPriority, TaskStatus, User } from "../_lib/types.js";
 
 interface CreateBody {
   title?: string;
@@ -43,9 +43,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!title) return badRequest(res, "title required");
 
     let assigneeName = "Unassigned";
+    let assigneeUser: User | null = null;
     if (body.assigneeId) {
       const a = await findUserById(body.assigneeId);
       if (!a) return badRequest(res, "assigneeId does not match any user");
+      assigneeUser = a;
       assigneeName = a.name + " <" + a.email + ">";
     }
 
@@ -63,6 +65,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     await upsertTask(t);
 
+    // Email the assignee directly. Fire-and-forget so a slow SMTP path
+    // never blocks task creation.
+    if (assigneeUser) {
+      await notifyAssignee({ task: t, assignee: assigneeUser, assignedBy: admin });
+    }
+
     await notifyAdmin({
       subject: "Task created",
       summary: `${admin.name} created task "${t.title}".`,
@@ -72,6 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         Priority: t.priority,
         Status: t.status,
         Due: t.dueDate ?? "—",
+        "Assignee notified": assigneeUser ? "yes" : "no",
       },
       byUser: admin,
     });

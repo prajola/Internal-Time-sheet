@@ -30,7 +30,12 @@ async function readBlob<T>(pathname: string): Promise<T | null> {
     const { blobs } = await list({ prefix: pathname });
     const found = blobs.find((b) => b.pathname === pathname);
     if (!found) return null;
-    const res = await fetch(found.url, { cache: "no-store" });
+    // Cache-bust at the request layer: `?_=ts` defeats any CDN edge that
+    // might serve a stale copy after our overwrite. Pair this with the
+    // cacheControlMaxAge:0 on put() below — together they give us
+    // read-after-write consistency for our small JSON state.
+    const url = `${found.url}${found.url.includes("?") ? "&" : "?"}_=${Date.now()}`;
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -44,6 +49,8 @@ async function writeBlob(pathname: string, data: unknown): Promise<void> {
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
+    // Tell Vercel's CDN not to cache — these blobs are mutable state.
+    cacheControlMaxAge: 0,
   });
 }
 
