@@ -4,6 +4,7 @@ import {
   Shield, ListChecks, Clock, AlertTriangle, Mail, Play,
   Activity, History, ShieldCheck, CalendarDays,
   ArrowUpRight, ArrowDownRight, CheckCircle2, CircleDot,
+  Download, Printer,
 } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { Link } from "wouter";
@@ -185,6 +186,37 @@ export default function AdminManage() {
     finally { setBusy(false); }
   }
 
+  function downloadCsv() {
+    if (!selected) return;
+    const myTasks = tasks.filter((t) => t.assigneeId === selected.id);
+    const myCreated = tasks.filter((t) => t.createdBy === selected.id);
+    const csv = buildUserCsv(selected, entries, myTasks, myCreated, users);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (selected.name || selected.email).replace(/[^A-Za-z0-9_-]+/g, "_");
+    a.href = url;
+    a.download = `kubegraf-${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    ok("CSV downloaded.");
+  }
+
+  function printReport() {
+    if (!selected) return;
+    const myTasks = tasks.filter((t) => t.assigneeId === selected.id);
+    const myCreated = tasks.filter((t) => t.createdBy === selected.id);
+    const html = buildUserReportHtml(selected, entries, myTasks, myCreated, users);
+    // Open in a new tab and call print() once it's loaded. The user can
+    // hit "Save as PDF" from the browser's print dialog — no extra deps.
+    const w = window.open("", "_blank", "noopener,noreferrer");
+    if (!w) { err("Pop-ups blocked. Allow pop-ups to print the report."); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => { try { w.focus(); w.print(); } catch { /* user can print manually */ } }, 350);
+  }
+
   const totalMinutesThisUser = useMemo(
     () => entries.reduce((s, e) => s + (e.durationMinutes || 0), 0),
     [entries]
@@ -358,6 +390,8 @@ export default function AdminManage() {
                 <div className="mt-5 pt-5 border-t border-gray-200">
                   <div className="text-[11px] uppercase tracking-[0.14em] text-gray-500 mb-3">Quick actions</div>
                   <div className="flex flex-wrap gap-2">
+                    <Action onClick={downloadCsv} disabled={busy} icon={<Download size={13} />} label="Download CSV" hint="Time entries + tasks for this user" />
+                    <Action onClick={printReport}  disabled={busy} icon={<Printer size={13} />} label="Print / Save PDF" hint="Print-friendly report — save as PDF from the browser" />
                     <Action onClick={resetPassword} disabled={busy} icon={<KeyRound size={13} />} label="Reset password" hint="Email a 24-hour reset link" />
                     <Action onClick={forceSignOut} disabled={busy} icon={<LogOut size={13} />} label="Force sign out" hint="Revoke all active sessions" />
                     {!isSelf && (
@@ -450,7 +484,7 @@ export default function AdminManage() {
                     <Stat label="Time entries"      value={entries.length} />
                   </div>
 
-                  {/* Activity timeline */}
+                  {/* Activity timeline — grouped by day with daily totals */}
                   <div className="ko-card overflow-hidden">
                     <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -464,19 +498,38 @@ export default function AdminManage() {
                         No activity yet for this user.
                       </div>
                     ) : (
-                      <ul className="divide-y divide-gray-100">
-                        {activity.slice(0, 20).map((a) => (
-                          <li key={a.id} className="px-4 py-3 flex items-start gap-3">
-                            <div className={"flex-shrink-0 w-7 h-7 rounded-full inline-flex items-center justify-center " + activityIconBg(a.kind)}>
-                              {activityIcon(a.kind)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm text-gray-900">{a.title}</div>
-                              {a.body && <div className="text-[12px] text-gray-500 mt-0.5">{a.body}</div>}
-                              <div className="text-[10px] uppercase tracking-[0.14em] text-gray-400 mt-1">
-                                {fmtDateTime(a.at)} · {timeAgo(a.at, tickNow)}
+                      <ul>
+                        {groupActivityByDay(activity, entries).slice(0, 7).map((day) => (
+                          <li key={day.day} className="border-b border-gray-100 last:border-b-0">
+                            {/* Day header with total time worked */}
+                            <div className="px-4 py-2.5 bg-gray-50/60 flex items-center justify-between gap-3 border-b border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <CalendarDays size={13} className="text-gray-500" />
+                                <span className="text-sm font-semibold text-gray-900">{fmtDate(day.day + "T00:00:00")}</span>
+                                <span className="text-[11px] text-gray-500">· {day.events.length} event{day.events.length === 1 ? "" : "s"}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[10px] uppercase tracking-[0.14em] text-gray-500 mr-1.5">Logged</span>
+                                <span className="font-mono text-sm font-semibold text-brand-700">{fmtMinutes(day.totalMinutes)}</span>
                               </div>
                             </div>
+                            {/* Events under that day */}
+                            <ul className="divide-y divide-gray-100">
+                              {day.events.map((a) => (
+                                <li key={a.id} className="px-4 py-3 flex items-start gap-3">
+                                  <div className={"flex-shrink-0 w-7 h-7 rounded-full inline-flex items-center justify-center " + activityIconBg(a.kind)}>
+                                    {activityIcon(a.kind)}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-sm text-gray-900">{a.title}</div>
+                                    {a.body && <div className="text-[12px] text-gray-500 mt-0.5">{a.body}</div>}
+                                    <div className="text-[10px] uppercase tracking-[0.14em] text-gray-400 mt-1">
+                                      {fmtDateTime(a.at)} · {timeAgo(a.at, tickNow)}
+                                    </div>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
                           </li>
                         ))}
                       </ul>
@@ -843,6 +896,41 @@ function buildActivity(
   return out.sort((a, b) => (a.at > b.at ? -1 : 1));
 }
 
+interface DayGroup {
+  day: string;            // YYYY-MM-DD
+  events: ActivityEvent[];
+  totalMinutes: number;   // sum of durations for entries whose startedAt is that day
+}
+
+/**
+ * Group activity events by calendar day and compute "minutes logged that day"
+ * from the time entries (only entries with a closed endedAt count toward the
+ * total — in-progress entries are excluded so the figure stays stable).
+ */
+function groupActivityByDay(events: ActivityEvent[], entries: TimeEntry[]): DayGroup[] {
+  const groupedEvents = new Map<string, ActivityEvent[]>();
+  for (const ev of events) {
+    const day = ev.at.slice(0, 10);
+    const arr = groupedEvents.get(day) || [];
+    arr.push(ev);
+    groupedEvents.set(day, arr);
+  }
+
+  const minutesByDay = new Map<string, number>();
+  for (const e of entries) {
+    if (!e.endedAt) continue;
+    const day = e.startedAt.slice(0, 10);
+    minutesByDay.set(day, (minutesByDay.get(day) || 0) + (e.durationMinutes || 0));
+  }
+
+  const days = Array.from(groupedEvents.keys()).sort((a, b) => (a < b ? 1 : -1));
+  return days.map((d) => ({
+    day: d,
+    events: groupedEvents.get(d)!.sort((a, b) => (a.at > b.at ? -1 : 1)),
+    totalMinutes: minutesByDay.get(d) || 0,
+  }));
+}
+
 function activityIconBg(kind: ActivityKind): string {
   if (kind === "clock-in")    return "bg-emerald-100 text-emerald-700";
   if (kind === "clock-out")   return "bg-blue-100 text-blue-700";
@@ -914,4 +1002,314 @@ function timeAgo(iso: string, nowMs: number): string {
   const days = Math.floor(hr / 24);
   if (days < 7) return `${days}d ago`;
   return new Date(iso).toLocaleDateString();
+}
+
+/* ── Report exports ─────────────────────────────────────────── */
+
+function escapeCsv(s: string | number | undefined | null): string {
+  const v = s == null ? "" : String(s);
+  if (/[",\n\r]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+  return v;
+}
+
+function buildUserCsv(
+  user: User,
+  entries: TimeEntry[],
+  tasksAssigned: Task[],
+  tasksCreated: Task[],
+  users: User[],
+): string {
+  const lines: string[][] = [];
+
+  // ── Header block ──
+  lines.push(["KubeGraf — Internal Time Sheet"]);
+  lines.push(["User report"]);
+  lines.push([`Generated ${new Date().toISOString()}`]);
+  lines.push([]);
+
+  // ── Identity ──
+  lines.push(["IDENTITY"]);
+  lines.push(["Name", user.name || ""]);
+  lines.push(["Email", user.email]);
+  lines.push(["Role", user.role]);
+  lines.push(["Status", user.active ? "Active" : "Inactive"]);
+  lines.push(["Joined", user.createdAt]);
+  if (user.passwordSetAt) lines.push(["Password set", user.passwordSetAt]);
+  lines.push([]);
+
+  // ── Time entries ──
+  const closed = entries.filter((e) => e.endedAt);
+  const totalMin = closed.reduce((s, e) => s + (e.durationMinutes || 0), 0);
+  lines.push([`TIME ENTRIES (${entries.length} total, ${minutesShort(totalMin)} logged)`]);
+  lines.push(["Started", "Ended", "Duration (min)", "Task", "Description"]);
+  const sorted = [...entries].sort((a, b) => (a.startedAt > b.startedAt ? -1 : 1));
+  for (const e of sorted) {
+    const task = tasksAssigned.find((t) => t.id === e.taskId)?.title || "";
+    lines.push([
+      e.startedAt,
+      e.endedAt || "(in progress)",
+      e.endedAt ? String(e.durationMinutes) : "",
+      task,
+      e.description || "",
+    ]);
+  }
+  lines.push([]);
+
+  // ── Daily totals ──
+  const byDay = new Map<string, number>();
+  for (const e of closed) {
+    const d = e.startedAt.slice(0, 10);
+    byDay.set(d, (byDay.get(d) || 0) + (e.durationMinutes || 0));
+  }
+  const days = Array.from(byDay.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  if (days.length > 0) {
+    lines.push(["DAILY TOTALS"]);
+    lines.push(["Date", "Minutes", "Formatted"]);
+    for (const [day, min] of days) lines.push([day, String(min), minutesShort(min)]);
+    lines.push([]);
+  }
+
+  // ── Tasks assigned ──
+  lines.push([`TASKS ASSIGNED (${tasksAssigned.length})`]);
+  lines.push(["Title", "Status", "Priority", "Due", "Created", "Created by"]);
+  for (const t of tasksAssigned) {
+    const creator = users.find((u) => u.id === t.createdBy);
+    lines.push([
+      t.title,
+      t.status,
+      t.priority,
+      t.dueDate || "",
+      t.createdAt,
+      creator?.email || "",
+    ]);
+  }
+  lines.push([]);
+
+  // ── Tasks created by user ──
+  lines.push([`TASKS CREATED BY USER (${tasksCreated.length})`]);
+  lines.push(["Title", "Assignee", "Status", "Priority", "Due", "Created"]);
+  for (const t of tasksCreated) {
+    const a = users.find((u) => u.id === t.assigneeId);
+    lines.push([
+      t.title,
+      a?.email || "",
+      t.status,
+      t.priority,
+      t.dueDate || "",
+      t.createdAt,
+    ]);
+  }
+
+  return lines.map((row) => row.map(escapeCsv).join(",")).join("\n");
+}
+
+function escHtml(s: string | number | null | undefined): string {
+  const v = s == null ? "" : String(s);
+  return v
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildUserReportHtml(
+  user: User,
+  entries: TimeEntry[],
+  tasksAssigned: Task[],
+  tasksCreated: Task[],
+  users: User[],
+): string {
+  const closed = entries.filter((e) => e.endedAt);
+  const totalMin = closed.reduce((s, e) => s + (e.durationMinutes || 0), 0);
+  const sortedEntries = [...entries].sort((a, b) => (a.startedAt > b.startedAt ? -1 : 1));
+
+  const byDay = new Map<string, number>();
+  for (const e of closed) {
+    const d = e.startedAt.slice(0, 10);
+    byDay.set(d, (byDay.get(d) || 0) + (e.durationMinutes || 0));
+  }
+  const days = Array.from(byDay.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+
+  const reportTitle = `${user.name || user.email} — KubeGraf Time Sheet`;
+  const generated = new Date().toLocaleString();
+
+  // Inline styles + auto-print are key to a one-click PDF.
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${escHtml(reportTitle)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1f2937; line-height: 1.5;
+    margin: 0; padding: 36px 40px 60px;
+    background: #fff;
+  }
+  .head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #ffa340; padding-bottom: 14px; margin-bottom: 28px; }
+  .head h1 { margin: 0; font-size: 22px; font-weight: 600; color: #111; letter-spacing: -0.01em; }
+  .head .brand { display: flex; align-items: center; gap: 10px; }
+  .head .logo { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #ffd486, #ffa340); display: flex; align-items: center; justify-content: center; color: #000; font-weight: 700; font-size: 15px; }
+  .head .meta { font-size: 11px; color: #6b7280; }
+  h2 { font-size: 13px; font-weight: 600; color: #111; text-transform: uppercase; letter-spacing: 0.12em; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  th, td { text-align: left; padding: 7px 10px; font-size: 12px; vertical-align: top; }
+  th { background: #f9fafb; color: #6b7280; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; border-bottom: 1px solid #e5e7eb; }
+  td { border-bottom: 1px solid #f3f4f6; color: #374151; }
+  td.num { font-family: ui-monospace, monospace; color: #b85700; font-weight: 600; }
+  .identity { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 13px; }
+  .identity .label { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .identity .value { color: #111; font-weight: 500; margin-bottom: 8px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+  .badge-admin { background: #fff5e8; color: #b85700; border: 1px solid #ffd486; }
+  .badge-emp { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+  .summary { display: flex; gap: 18px; flex-wrap: wrap; margin: 16px 0; }
+  .summary .card { padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; min-width: 120px; }
+  .summary .card .lbl { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; }
+  .summary .card .val { font-size: 18px; font-weight: 600; color: #111; }
+  .summary .card.brand .val { color: #b85700; }
+  .empty { padding: 14px; text-align: center; color: #9ca3af; font-style: italic; font-size: 12px; }
+  .foot { margin-top: 32px; font-size: 10px; color: #9ca3af; text-align: center; }
+  @media print {
+    body { padding: 18mm 14mm 18mm; }
+    h2 { page-break-after: avoid; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+  }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1>${escHtml(reportTitle)}</h1>
+      <div class="meta">Generated ${escHtml(generated)}</div>
+    </div>
+    <div class="brand">
+      <div class="logo">K</div>
+      <div>
+        <div style="font-weight:600;font-size:13px;color:#111;">KubeGraf</div>
+        <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.12em;">Internal Time Sheet</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Identity</h2>
+  <div class="identity">
+    <div>
+      <div class="label">Name</div>
+      <div class="value">${escHtml(user.name || "—")}</div>
+    </div>
+    <div>
+      <div class="label">Email</div>
+      <div class="value">${escHtml(user.email)}</div>
+    </div>
+    <div>
+      <div class="label">Role</div>
+      <div class="value"><span class="badge ${user.role === "ADMIN" ? "badge-admin" : "badge-emp"}">${user.role}</span></div>
+    </div>
+    <div>
+      <div class="label">Status</div>
+      <div class="value">${user.active ? "Active" : "Inactive"}</div>
+    </div>
+    <div>
+      <div class="label">Joined</div>
+      <div class="value">${escHtml(new Date(user.createdAt).toLocaleString())}</div>
+    </div>
+    <div>
+      <div class="label">Password set</div>
+      <div class="value">${user.passwordSetAt ? escHtml(new Date(user.passwordSetAt).toLocaleString()) : "—"}</div>
+    </div>
+  </div>
+
+  <h2>Summary</h2>
+  <div class="summary">
+    <div class="card brand"><div class="lbl">Total time logged</div><div class="val">${escHtml(minutesShort(totalMin))}</div></div>
+    <div class="card"><div class="lbl">Days worked</div><div class="val">${days.length}</div></div>
+    <div class="card"><div class="lbl">Time entries</div><div class="val">${entries.length}</div></div>
+    <div class="card"><div class="lbl">Tasks assigned</div><div class="val">${tasksAssigned.length}</div></div>
+    <div class="card"><div class="lbl">Tasks created</div><div class="val">${tasksCreated.length}</div></div>
+  </div>
+
+  <h2>Daily totals</h2>
+  ${days.length === 0
+    ? `<div class="empty">No completed time entries yet.</div>`
+    : `<table>
+        <thead><tr><th>Date</th><th>Hours</th><th>Formatted</th></tr></thead>
+        <tbody>
+        ${days
+          .map(([d, min]) => `<tr><td>${escHtml(new Date(d + "T00:00:00").toDateString())}</td><td class="num">${(min / 60).toFixed(2)}</td><td class="num">${escHtml(minutesShort(min))}</td></tr>`)
+          .join("")}
+        </tbody>
+      </table>`}
+
+  <h2>Time entries (${entries.length})</h2>
+  ${entries.length === 0
+    ? `<div class="empty">No time entries yet.</div>`
+    : `<table>
+        <thead><tr>
+          <th>Started</th>
+          <th>Ended</th>
+          <th>Duration</th>
+          <th>Task</th>
+          <th>Description</th>
+        </tr></thead>
+        <tbody>
+        ${sortedEntries.map((e) => {
+          const task = tasksAssigned.find((t) => t.id === e.taskId)?.title || "";
+          return `<tr>
+            <td>${escHtml(new Date(e.startedAt).toLocaleString())}</td>
+            <td>${e.endedAt ? escHtml(new Date(e.endedAt).toLocaleString()) : "<em>in progress</em>"}</td>
+            <td class="num">${e.endedAt ? escHtml(minutesShort(e.durationMinutes)) : "—"}</td>
+            <td>${escHtml(task)}</td>
+            <td>${escHtml(e.description || "")}</td>
+          </tr>`;
+        }).join("")}
+        </tbody>
+      </table>`}
+
+  <h2>Tasks assigned (${tasksAssigned.length})</h2>
+  ${tasksAssigned.length === 0
+    ? `<div class="empty">No tasks assigned.</div>`
+    : `<table>
+        <thead><tr><th>Title</th><th>Status</th><th>Priority</th><th>Due</th><th>Created by</th></tr></thead>
+        <tbody>
+        ${tasksAssigned.map((t) => {
+          const creator = users.find((u) => u.id === t.createdBy);
+          return `<tr>
+            <td><strong>${escHtml(t.title)}</strong>${t.description ? `<div style="color:#6b7280;font-size:11px;margin-top:2px;">${escHtml(t.description)}</div>` : ""}</td>
+            <td>${escHtml(t.status.replace("_", " "))}</td>
+            <td>${escHtml(t.priority)}</td>
+            <td>${escHtml(t.dueDate || "—")}</td>
+            <td>${escHtml(creator?.email || "—")}</td>
+          </tr>`;
+        }).join("")}
+        </tbody>
+      </table>`}
+
+  <h2>Tasks created by ${escHtml(user.name || user.email)} (${tasksCreated.length})</h2>
+  ${tasksCreated.length === 0
+    ? `<div class="empty">No tasks created.</div>`
+    : `<table>
+        <thead><tr><th>Title</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th></tr></thead>
+        <tbody>
+        ${tasksCreated.map((t) => {
+          const a = users.find((u) => u.id === t.assigneeId);
+          return `<tr>
+            <td><strong>${escHtml(t.title)}</strong></td>
+            <td>${escHtml(a?.email || "—")}</td>
+            <td>${escHtml(t.status.replace("_", " "))}</td>
+            <td>${escHtml(t.priority)}</td>
+            <td>${escHtml(t.dueDate || "—")}</td>
+          </tr>`;
+        }).join("")}
+        </tbody>
+      </table>`}
+
+  <div class="foot">
+    KubeGraf · Internal use only · Confidential
+  </div>
+</body>
+</html>`;
 }
