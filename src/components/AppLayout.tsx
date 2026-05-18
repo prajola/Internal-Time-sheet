@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LogOut, LayoutDashboard, ClipboardList, Clock, Users, ListChecks, CalendarRange } from "lucide-react";
+import { LogOut, LayoutDashboard, ClipboardList, Clock, Users, ListChecks, CalendarRange, Settings2 } from "lucide-react";
 import { useAuth } from "../lib/auth-context";
 
 interface NavItem {
@@ -21,6 +21,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         { href: "/users", label: "Users",      icon: <Users size={16} /> },
         { href: "/tasks", label: "Tasks",      icon: <ListChecks size={16} /> },
         { href: "/timesheets", label: "Timesheets", icon: <CalendarRange size={16} /> },
+        { href: "/manage", label: "Manage",    icon: <Settings2 size={16} /> },
       ]
     : [
         { href: "/", label: "Dashboard",       icon: <LayoutDashboard size={16} /> },

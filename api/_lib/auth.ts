@@ -98,6 +98,14 @@ export async function getSession(req: VercelRequest): Promise<{ user: User; clai
   if (!claims) return null;
   const user = await findUserById(claims.sub);
   if (!user || !user.active) return null;
+
+  // Admin-revoked sessions: if the token was issued before the user's
+  // sessionsRevokedAt timestamp, treat it as signed out.
+  if (user.sessionsRevokedAt) {
+    const revokedAtSec = Math.floor(new Date(user.sessionsRevokedAt).getTime() / 1000);
+    if (claims.iat < revokedAtSec) return null;
+  }
+
   return { user, claims };
 }
 

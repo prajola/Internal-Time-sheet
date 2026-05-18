@@ -17,6 +17,7 @@ export interface User {
   invitedBy?: string;     // userId of inviter
   passwordHash?: string | null;   // bcrypt hash; null until first set
   passwordSetAt?: string | null;  // ISO — when password was first set or last changed
+  sessionsRevokedAt?: string | null; // ISO — all sessions issued before this are invalid
 }
 
 export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "BLOCKED";

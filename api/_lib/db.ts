@@ -77,6 +77,17 @@ export async function removeUser(id: string): Promise<void> {
   await saveUsers(users.filter((u) => u.id !== id));
 }
 
+/**
+ * Hard-delete a user: removes the user record AND their time-entry shard.
+ * Tasks they own/created/are assigned to are left in place; admin can
+ * reassign or delete those separately.
+ */
+export async function removeUserHard(id: string): Promise<void> {
+  await removeUser(id);
+  // Best-effort: wipe their entries by writing an empty shard.
+  await saveEntriesForUser(id, []);
+}
+
 /* ── Tasks ───────────────────────────────────────────────────── */
 
 export async function listTasks(): Promise<Task[]> {

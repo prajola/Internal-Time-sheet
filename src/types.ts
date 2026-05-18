@@ -12,6 +12,7 @@ export interface User {
   invitedBy?: string | null;
   passwordHash?: string | null;     // never sent over the wire; server strips it
   passwordSetAt?: string | null;    // ISO — null means user hasn't set a password yet
+  sessionsRevokedAt?: string | null;
 }
 
 export interface Task {

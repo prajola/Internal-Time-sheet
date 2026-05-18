@@ -1,12 +1,12 @@
 /**
- * GET    /api/users/:id    — view (auth required; non-admins only their own)
- * PATCH  /api/users/:id    — update name (self) / role + active (admin only)
- * DELETE /api/users/:id    — soft-delete (admin only, can't delete self)
+ * GET    /api/users/:id                — view (auth required; non-admins only their own)
+ * PATCH  /api/users/:id                — update name (self) / role + active + forceSignOut (admin)
+ * DELETE /api/users/:id                — soft-delete (default) or hard-delete with ?hard=1 (admin)
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireAuth, requireAdmin } from "../_lib/auth.js";
-import { findUserById, upsertUser, listUsers } from "../_lib/db.js";
-import { readBody, ok, badRequest, notFound, methodNotAllowed } from "../_lib/helpers.js";
+import { findUserById, upsertUser, listUsers, removeUserHard } from "../_lib/db.js";
+import { readBody, ok, badRequest, notFound, methodNotAllowed, nowIso } from "../_lib/helpers.js";
 import { notifyAdmin } from "../_lib/notify.js";
 import { publicUser } from "../_lib/passwords.js";
 import type { Role } from "../_lib/types.js";
@@ -15,6 +15,7 @@ interface PatchBody {
   name?: string;
   role?: Role;
   active?: boolean;
+  forceSignOut?: boolean;   // admin → revokes all of this user's active sessions
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -61,6 +62,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       changes.active = `${u.active} → ${body.active}`;
       next.active = body.active;
     }
+    if (body.forceSignOut && isAdmin) {
+      next.sessionsRevokedAt = nowIso();
+      changes.forceSignOut = "all sessions revoked";
+    }
 
     if (Object.keys(changes).length === 0) return badRequest(res, "No allowed changes");
 
@@ -87,18 +92,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const u = await findUserById(id);
     if (!u) return notFound(res, "User not found");
 
+    const hard = req.query.hard === "1" || req.query.hard === "true";
+
+    // Last-admin protection applies in both modes.
+    const allUsers = await listUsers();
+    if (u.role === "ADMIN") {
+      const otherActiveAdmins = allUsers.filter((x) => x.role === "ADMIN" && x.active && x.id !== u.id);
+      if (otherActiveAdmins.length === 0) {
+        return badRequest(res, "Cannot remove the last active admin");
+      }
+    }
+
+    if (hard) {
+      // Hard delete: nuke the user record + their time-entry shard.
+      await removeUserHard(u.id);
+      await notifyAdmin({
+        subject: "User permanently deleted",
+        summary: `${admin.name} permanently deleted ${u.email}.`,
+        details: {
+          User: u.email,
+          Role: u.role,
+          "By": `${admin.name} <${admin.email}>`,
+          Note: "Hard delete — user record + time entries removed.",
+        },
+        byUser: admin,
+      });
+      return ok(res, { success: true, hard: true });
+    }
+
     // Soft-delete: deactivate (preserves time history + audit trail).
     const next = { ...u, active: false };
     await upsertUser(next);
-
-    // If we just disabled the last active admin, re-promote to prevent lockout.
-    const users = await listUsers();
-    const activeAdmins = users.filter((x) => x.role === "ADMIN" && x.active);
-    if (activeAdmins.length === 0) {
-      const restored = { ...next, active: true };
-      await upsertUser(restored);
-      return badRequest(res, "Cannot remove the last active admin");
-    }
 
     await notifyAdmin({
       subject: "User deactivated",
