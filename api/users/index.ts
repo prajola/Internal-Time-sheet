@@ -24,6 +24,8 @@ import {
   ok,
   badRequest,
   methodNotAllowed,
+  isAllowedEmail,
+  emailDomainError,
 } from "../_lib/helpers.js";
 import { sendMail, passwordSetupEmail } from "../_lib/email.js";
 import { issueSetupToken } from "../_lib/auth.js";
@@ -58,6 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (role !== "ADMIN" && role !== "EMPLOYEE") return badRequest(res, "role must be ADMIN or EMPLOYEE");
 
     const e = normalizeEmail(email!);
+    if (!isAllowedEmail(e)) return badRequest(res, emailDomainError());
     if (await findUserByEmail(e)) return badRequest(res, "User already exists");
     if (await findInvitationByEmail(e)) return badRequest(res, "Invite already pending for this email");
 

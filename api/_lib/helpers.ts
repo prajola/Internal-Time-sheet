@@ -55,6 +55,38 @@ export function normalizeEmail(s: string): string {
 }
 
 /**
+ * Workspace email policy: only @kubegraf.io is accepted, with one
+ * explicit override: the BOOTSTRAP_ADMIN_EMAIL env var is always allowed
+ * (so the founding admin can use a personal address like
+ * `kubegraf@gmail.com` without losing access).
+ *
+ * ALLOWED_EMAIL_DOMAINS env var can additionally widen the set if needed.
+ */
+const DEFAULT_ALLOWED_DOMAIN = "kubegraf.io";
+
+export function allowedDomains(): string[] {
+  const extra = (process.env.ALLOWED_EMAIL_DOMAINS || "")
+    .split(",")
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
+  return Array.from(new Set([DEFAULT_ALLOWED_DOMAIN, ...extra]));
+}
+
+export function isAllowedEmail(email: string): boolean {
+  const e = normalizeEmail(email);
+  if (!e) return false;
+  const bootstrap = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || "");
+  if (bootstrap && bootstrap === e) return true;
+  const domain = e.split("@")[1] || "";
+  return allowedDomains().includes(domain);
+}
+
+/** Standard rejection message — kept in one place so it's consistent. */
+export function emailDomainError(): string {
+  return "Please use your organization email (@kubegraf.io). Personal addresses like Gmail or Yahoo are not allowed.";
+}
+
+/**
  * Filter time-entries by (day | dateRange | month | year).
  * Use exactly one of the four filters; if none provided, returns input unchanged.
  */

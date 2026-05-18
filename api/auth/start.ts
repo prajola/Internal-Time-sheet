@@ -32,11 +32,16 @@ import { sendMail, passwordSetupEmail } from "../_lib/email.js";
 import {
   readBody, ok, badRequest, methodNotAllowed,
   normalizeEmail, emailLooksValid, uuid, nowIso,
+  isAllowedEmail, emailDomainError,
 } from "../_lib/helpers.js";
 import { notifyAdmin } from "../_lib/notify.js";
 import type { User, Role } from "../_lib/types.js";
 
-interface Body { email?: string; mode?: "reset" }
+interface Body {
+  email?: string;
+  mode?: "reset";
+  intent?: "signin" | "signup";   // explicit user intent from the UI
+}
 
 function appUrl(): string {
   return (process.env.APP_URL || "https://internal-time-sheet.vercel.app").replace(/\/$/, "");
@@ -72,10 +77,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = readBody<Body>(req);
   const email = normalizeEmail(body.email || "");
   const mode = body.mode === "reset" ? "reset" : "normal";
+  const intent: "signin" | "signup" | null =
+    body.intent === "signin" ? "signin" :
+    body.intent === "signup" ? "signup" : null;
 
   if (!emailLooksValid(email)) return badRequest(res, "Enter a valid email address");
+  if (!isAllowedEmail(email)) return res.status(400).json({ error: emailDomainError(), code: "EMAIL_DOMAIN_NOT_ALLOWED" });
 
   const existing = await findUserByEmail(email);
+
+  // Enforce explicit intent when supplied.
+  if (intent === "signin" && !existing && mode !== "reset") {
+    // Don't silently create a new account on a sign-in attempt.
+    return res.status(404).json({
+      error: "No account exists for that email. Create one with Sign up.",
+      code: "NO_ACCOUNT",
+    });
+  }
+  if (intent === "signup" && existing && existing.active && existing.passwordHash) {
+    return res.status(409).json({
+      error: "An account already exists for that email. Use Sign in instead.",
+      code: "ACCOUNT_EXISTS",
+    });
+  }
 
   /* 1. Existing active user with a password */
   if (existing && existing.active && existing.passwordHash) {

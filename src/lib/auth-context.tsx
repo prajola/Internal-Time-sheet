@@ -29,6 +29,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function logout() {
     try { await api.post("/api/auth/logout", {}); } catch { /* noop */ }
     setUser(null);
+    // Hard-navigate to /login so the entire app state (incl. any cached
+    // protected-page data) gets reset.
+    window.location.href = "/login";
   }
 
   useEffect(() => { refresh(); }, []);

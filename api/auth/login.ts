@@ -20,6 +20,7 @@ import { verifyPassword, publicUser } from "../_lib/passwords.js";
 import {
   readBody, ok, badRequest, methodNotAllowed,
   normalizeEmail, emailLooksValid,
+  isAllowedEmail, emailDomainError,
 } from "../_lib/helpers.js";
 
 interface Body { email?: string; password?: string }
@@ -36,6 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const password = typeof body.password === "string" ? body.password : "";
 
   if (!emailLooksValid(email)) return badRequest(res, "Enter a valid email");
+  if (!isAllowedEmail(email)) return res.status(400).json({ error: emailDomainError(), code: "EMAIL_DOMAIN_NOT_ALLOWED" });
   if (!password) return badRequest(res, "Password is required");
 
   const user = await findUserByEmail(email);
