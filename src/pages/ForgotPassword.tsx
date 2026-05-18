@@ -23,7 +23,7 @@ export default function ForgotPassword() {
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-[440px]">
         <div className="flex items-center gap-2.5 mb-5">
-          <div className="w-7 h-7 rounded-md bg-gradient-to-br from-brand-300 to-brand-500 flex items-center justify-center text-black font-display font-bold text-sm">K</div>
+          <img src="/kubegraf-logo.png" alt="KubeGraf" className="w-9 h-9 object-contain" />
           <div className="leading-tight">
             <div className="font-display text-[15px] font-semibold tracking-tight text-gray-900">KubeGraf</div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Internal Time Sheet</div>

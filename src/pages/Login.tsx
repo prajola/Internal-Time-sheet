@@ -150,10 +150,14 @@ export default function Login() {
       />
       <div className="w-full max-w-[460px] relative ko-fade-in-up">
         {/* Brand */}
-        <div className="flex items-center justify-center gap-2.5 mb-6">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-300 to-brand-500 flex items-center justify-center text-black font-display font-bold text-base shadow-[0_4px_12px_rgba(255,160,80,0.35)]">K</div>
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <img
+            src="/kubegraf-logo.png"
+            alt="KubeGraf"
+            className="w-11 h-11 object-contain drop-shadow-[0_4px_12px_rgba(255,160,80,0.25)]"
+          />
           <div className="leading-tight text-left">
-            <div className="font-display text-[16px] font-semibold tracking-tight text-gray-900">KubeGraf</div>
+            <div className="font-display text-[17px] font-semibold tracking-tight text-gray-900">KubeGraf</div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Internal Time Sheet</div>
           </div>
         </div>

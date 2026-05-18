@@ -121,19 +121,26 @@ export default function Dashboard() {
           }}
         />
         <div className="relative flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-0">
-            <div className="ko-eyebrow mb-2 inline-flex items-center gap-1.5">
-              <Sparkles size={11} /> {greeting}
+          <div className="min-w-0 flex items-start gap-4">
+            <img
+              src="/kubegraf-logo.png"
+              alt="KubeGraf"
+              className="w-16 h-16 md:w-20 md:h-20 object-contain flex-shrink-0 drop-shadow-[0_6px_16px_rgba(255,160,80,0.20)]"
+            />
+            <div className="min-w-0">
+              <div className="ko-eyebrow mb-2 inline-flex items-center gap-1.5">
+                <Sparkles size={11} /> {greeting}
+              </div>
+              <h1 className="ko-h1">
+                Hello, <span className="text-brand-700">{firstName}</span>
+                <span className="text-gray-400">.</span>
+              </h1>
+              <p className="text-sm text-gray-500 mt-2 max-w-md">
+                {open
+                  ? "You're currently clocked in. Don't forget to clock out when you wrap."
+                  : "Ready to start your day? Track time, complete tasks, all in one place."}
+              </p>
             </div>
-            <h1 className="ko-h1">
-              Hello, <span className="text-brand-700">{firstName}</span>
-              <span className="text-gray-400">.</span>
-            </h1>
-            <p className="text-sm text-gray-500 mt-2 max-w-md">
-              {open
-                ? "You're currently clocked in. Don't forget to clock out when you wrap."
-                : "Ready to start your day? Track time, complete tasks, all in one place."}
-            </p>
           </div>
           <button
             onClick={load}

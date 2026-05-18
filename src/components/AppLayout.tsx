@@ -64,7 +64,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <header className="border-b border-gray-200 bg-white/85 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2.5 group min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-300 to-brand-500 flex items-center justify-center text-black font-display font-bold text-[15px] shadow-[0_2px_6px_rgba(255,160,80,0.35)]">K</div>
+            <img
+              src="/kubegraf-logo.png"
+              alt="KubeGraf"
+              className="w-9 h-9 object-contain transition-transform group-hover:scale-105"
+            />
             <div className="leading-tight min-w-0 hidden sm:block">
               <div className="font-display text-[15px] font-semibold tracking-tight text-gray-900 truncate">KubeGraf</div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Internal Time Sheet</div>
