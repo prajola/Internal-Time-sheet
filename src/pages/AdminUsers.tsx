@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Plus, X, UserCog, UserX, UserCheck, KeyRound, Users as UsersIcon } from "lucide-react";
+import { Plus, X, UserCog, UserX, UserCheck, Lock, Users as UsersIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
+import { SetPasswordDialog } from "../components/SetPasswordDialog";
 import { fmtDate } from "../lib/format";
 import type { Role, User } from "../types";
 
@@ -14,6 +15,7 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
+  const [setPwTarget, setSetPwTarget] = useState<User | null>(null);
 
   async function load() {
     setLoading(true);
@@ -46,12 +48,8 @@ export default function AdminUsers() {
     } catch (e: any) { err(e?.message || "Failed"); }
   }
 
-  async function resetPassword(u: User) {
-    if (!confirm(`Send a password-reset link to ${u.email}? Their current password will stop working immediately.`)) return;
-    try {
-      await api.patch(`/api/users/${u.id}`, { resetPassword: true });
-      ok(`Reset link sent to ${u.email}.`);
-    } catch (e: any) { err(e?.message || "Failed"); }
+  function openSetPassword(u: User) {
+    setSetPwTarget(u);
   }
 
   return (
@@ -107,8 +105,8 @@ export default function AdminUsers() {
                   <td>{u.active ? <span className="text-emerald-700 text-xs">Active</span> : <span className="text-gray-400 text-xs">Inactive</span>}</td>
                   <td className="text-gray-500">{fmtDate(u.createdAt)}</td>
                   <td className="text-right space-x-1">
-                    <button onClick={() => resetPassword(u)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1" title="Email a password-reset link">
-                      <KeyRound size={12} /> Reset password
+                    <button onClick={() => openSetPassword(u)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1" title="Set a new password directly — applied immediately, no email">
+                      <Lock size={12} /> Set password
                     </button>
                     {u.id !== me?.id && (
                       <>
@@ -129,6 +127,15 @@ export default function AdminUsers() {
       )}
 
       {showInvite && <InviteDialog onClose={() => setShowInvite(false)} onSent={() => { setShowInvite(false); load(); }} />}
+      {setPwTarget && (
+        <SetPasswordDialog
+          user={setPwTarget}
+          onClose={() => setSetPwTarget(null)}
+          onSaved={() => { setSetPwTarget(null); load(); }}
+          onSuccessToast={ok}
+          onErrorToast={err}
+        />
+      )}
     </div>
   );
 }

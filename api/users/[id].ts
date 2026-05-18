@@ -12,7 +12,7 @@ import { findUserById, upsertUser, listUsers, removeUserHard } from "../_lib/db.
 import { readBody, ok, badRequest, notFound, methodNotAllowed, nowIso } from "../_lib/helpers.js";
 import { notifyAdmin, notifyUser } from "../_lib/notify.js";
 import { sendMail, passwordSetupEmail, accountUpdateEmail } from "../_lib/email.js";
-import { publicUser } from "../_lib/passwords.js";
+import { publicUser, hashPassword, validateStrength } from "../_lib/passwords.js";
 import type { Role, User } from "../_lib/types.js";
 
 interface PatchBody {
@@ -21,6 +21,7 @@ interface PatchBody {
   active?: boolean;
   forceSignOut?: boolean;   // admin → revokes all of this user's active sessions
   resetPassword?: boolean;  // admin → emails reset link, clears existing hash
+  setPassword?: string;     // admin → directly set this user's password (no email)
 }
 
 function appUrl(): string {
@@ -140,7 +141,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Admin "Reset password" — clears the existing hash, emails a 24h setup link.
+    // Admin "Set new password directly" — applies immediately, no email.
+    // This is the M365-style "I forgot my user's password — fix it now" flow.
+    if (typeof body.setPassword === "string" && body.setPassword.length > 0 && isAdmin) {
+      const strength = validateStrength(body.setPassword);
+      if (!strength.ok) return badRequest(res, strength.reason || "Password is too weak");
+
+      next.passwordHash = await hashPassword(body.setPassword);
+      next.passwordSetAt = nowIso();
+      // Force re-login on all existing sessions so the old password can't
+      // be used and the user picks up the new credentials.
+      next.sessionsRevokedAt = nowIso();
+      changes.setPassword = "password set by admin (existing sessions revoked)";
+
+      if (!isSelf) {
+        userNotifications.push(() => notifyUser({
+          to: next,
+          kind: "account-password-reset",
+          title: "Your password was changed by admin",
+          body: `${me.name} set a new password on your account. Use the password they shared with you to sign in. Existing sessions have been signed out.`,
+          from: { id: me.id, name: me.name, email: me.email },
+          email: accountUpdateEmail({
+            to: next.email,
+            recipientName: next.name,
+            actorName: me.name,
+            headline: "Your KubeGraf password was changed",
+            detail: `${me.name} set a new password on your KubeGraf Internal Time Sheet account. Use the password they shared with you to sign in. If this wasn't expected, reply to this email immediately.`,
+            appUrl: appUrl(),
+            ctaLabel: "Sign in",
+            ctaHref: `${appUrl()}/login`,
+          }),
+        }));
+      }
+    }
+
+    // Admin "Email a reset link" — clears the existing hash, emails a 24h setup link.
     if (body.resetPassword && isAdmin) {
       next.passwordHash = null;
       next.passwordSetAt = null;
@@ -155,8 +190,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         purpose: "reset",
         invitedBy: me.name,
       });
-      // Email is sent here directly because we have a unique reset link
-      // and don't want to duplicate it into the generic notify path.
       await sendMail({ to: u.email, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: me.email })
         .catch((err) => console.warn("[users/[id]] reset email failed:", err));
 

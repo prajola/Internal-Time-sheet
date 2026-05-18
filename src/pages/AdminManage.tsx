@@ -4,9 +4,10 @@ import {
   Shield, ListChecks, Clock, AlertTriangle, Mail, Play,
   Activity, History, ShieldCheck, CalendarDays,
   ArrowUpRight, ArrowDownRight, CheckCircle2, CircleDot,
-  Download, Printer,
+  Download, Printer, Lock, MailQuestion,
 } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
+import { SetPasswordDialog } from "../components/SetPasswordDialog";
 import { Link } from "wouter";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
@@ -27,6 +28,7 @@ export default function AdminManage() {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"overview" | "timesheet" | "tasks" | "account">("overview");
   const [tsRange, setTsRange] = useState<"all" | "week" | "month" | "year">("all");
+  const [showSetPassword, setShowSetPassword] = useState(false);
 
   async function loadAll() {
     try {
@@ -99,9 +101,14 @@ export default function AdminManage() {
     [tasks, selectedId]
   );
 
-  async function resetPassword() {
+  function openSetPassword() {
     if (!selected) return;
-    if (!confirm(`Send a password-reset link to ${selected.email}? Their current password will stop working immediately.`)) return;
+    setShowSetPassword(true);
+  }
+
+  async function emailResetLink() {
+    if (!selected) return;
+    if (!confirm(`Email a password-reset link to ${selected.email}? Their current password will stop working immediately.`)) return;
     setBusy(true);
     try {
       await api.patch(`/api/users/${selected.id}`, { resetPassword: true });
@@ -392,7 +399,8 @@ export default function AdminManage() {
                   <div className="flex flex-wrap gap-2">
                     <Action onClick={downloadCsv} disabled={busy} icon={<Download size={13} />} label="Download CSV" hint="Time entries + tasks for this user" />
                     <Action onClick={printReport}  disabled={busy} icon={<Printer size={13} />} label="Print / Save PDF" hint="Print-friendly report — save as PDF from the browser" />
-                    <Action onClick={resetPassword} disabled={busy} icon={<KeyRound size={13} />} label="Reset password" hint="Email a 24-hour reset link" />
+                    <Action onClick={openSetPassword} disabled={busy} icon={<Lock size={13} />} label="Set password" hint="Choose a new password here — applied immediately, no email" />
+                    <Action onClick={emailResetLink}  disabled={busy} icon={<MailQuestion size={13} />} label="Email reset link" hint="Send the user a 24-hour reset link instead" />
                     <Action onClick={forceSignOut} disabled={busy} icon={<LogOut size={13} />} label="Force sign out" hint="Revoke all active sessions" />
                     {!isSelf && (
                       <Action onClick={toggleRole} disabled={busy || (isLastAdmin && selected.role === "ADMIN")}
@@ -682,6 +690,16 @@ export default function AdminManage() {
           )}
         </section>
       </div>
+
+      {showSetPassword && selected && (
+        <SetPasswordDialog
+          user={selected}
+          onClose={() => setShowSetPassword(false)}
+          onSaved={() => { setShowSetPassword(false); loadAll(); }}
+          onSuccessToast={ok}
+          onErrorToast={err}
+        />
+      )}
     </div>
   );
 }
