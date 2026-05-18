@@ -85,9 +85,9 @@ export default function Dashboard() {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-display text-3xl tracking-tight">
-            Hello, <span className="text-brand-100">{user?.name?.split(" ")[0] || "there"}</span>.
+            Hello, <span className="text-brand-800">{user?.name?.split(" ")[0] || "there"}</span>.
           </h1>
-          <p className="text-sm text-white/55 mt-1">{fmtDate(new Date().toISOString())}</p>
+          <p className="text-sm text-gray-500 mt-1">{fmtDate(new Date().toISOString())}</p>
         </div>
         <button onClick={load} className="ko-btn-ghost h-9 px-3 text-xs inline-flex items-center gap-1.5">
           <RefreshCw size={14} /> Refresh
@@ -97,22 +97,22 @@ export default function Dashboard() {
       <section className="ko-card-glow p-6">
         <div className="flex flex-col lg:flex-row gap-6 lg:items-center lg:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.18em] text-white/45 mb-2">
+            <div className="text-xs uppercase tracking-[0.18em] text-gray-500 mb-2">
               {open ? "Clocked in" : "Clock"}
             </div>
             {open ? (
               <>
-                <div className="font-mono text-5xl font-semibold tabular-nums text-brand-100">
+                <div className="font-mono text-5xl font-semibold tabular-nums text-brand-800">
                   {formatSec(elapsedSec)}
                 </div>
-                <div className="text-sm text-white/55 mt-1">
+                <div className="text-sm text-gray-500 mt-1">
                   Started {fmtTime(open.startedAt)}{open.description ? ` · ${open.description}` : ""}
                 </div>
               </>
             ) : (
               <>
-                <div className="font-display text-3xl">{fmtMinutes(todayMinutes)} <span className="text-white/40 text-base font-normal">today</span></div>
-                <div className="text-sm text-white/55 mt-1">Ready when you are.</div>
+                <div className="font-display text-3xl">{fmtMinutes(todayMinutes)} <span className="text-gray-400 text-base font-normal">today</span></div>
+                <div className="text-sm text-gray-500 mt-1">Ready when you are.</div>
               </>
             )}
           </div>
@@ -154,7 +154,7 @@ export default function Dashboard() {
       <section>
         <h2 className="font-display text-xl mb-3">Recent entries</h2>
         {recent.length === 0 ? (
-          <div className="ko-card p-6 text-sm text-white/55">No time entries yet. Clock in to start tracking.</div>
+          <div className="ko-card p-6 text-sm text-gray-500">No time entries yet. Clock in to start tracking.</div>
         ) : (
           <div className="ko-card overflow-hidden">
             <table className="ko-table">
@@ -170,9 +170,9 @@ export default function Dashboard() {
                 {recent.map((e) => (
                   <tr key={e.id}>
                     <td>{fmtDateTime(e.startedAt)}</td>
-                    <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-200">in progress</span>}</td>
+                    <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-700">in progress</span>}</td>
                     <td className="font-mono">{e.endedAt ? fmtMinutes(e.durationMinutes) : "—"}</td>
-                    <td className="text-white/70">{e.description || "—"}</td>
+                    <td className="text-gray-600">{e.description || "—"}</td>
                   </tr>
                 ))}
               </tbody>

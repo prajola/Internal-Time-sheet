@@ -27,10 +27,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={
-              "px-4 py-3 rounded-md text-sm border shadow-soft backdrop-blur bg-black/70 " +
-              (t.tone === "ok"  ? "border-brand-400/50 text-brand-100"
-              : t.tone === "err" ? "border-red-400/50 text-red-200"
-              :                    "border-white/15 text-white/80")
+              "px-4 py-3 rounded-md text-sm border bg-white shadow-[0_4px_12px_rgba(16,24,40,0.08)] " +
+              (t.tone === "ok"  ? "border-brand-300 text-brand-800"
+              : t.tone === "err" ? "border-red-200 text-red-700"
+              :                    "border-gray-200 text-gray-700")
             }
           >
             {t.text}

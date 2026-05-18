@@ -77,7 +77,7 @@ export default function AdminTimesheets() {
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h1 className="font-display text-3xl tracking-tight">All timesheets</h1>
-          <p className="text-sm text-white/55 mt-1">Every clock-in across every user, filterable by date, user and task.</p>
+          <p className="text-sm text-gray-500 mt-1">Every clock-in across every user, filterable by date, user and task.</p>
         </div>
         <button onClick={downloadCsv} className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5">
           <Download size={14} /> Export CSV
@@ -90,22 +90,22 @@ export default function AdminTimesheets() {
         extra={
           <>
             <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 mb-1">User</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1">User</div>
               <select className="ko-input h-9 w-52" value={userId} onChange={(e) => setUserId(e.target.value)}>
                 <option value="all">All users</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
               </select>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 mb-1">Task</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1">Task</div>
               <select className="ko-input h-9 w-56" value={taskId} onChange={(e) => setTaskId(e.target.value)}>
                 <option value="all">All tasks</option>
                 {tasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
               </select>
             </div>
             <div className="text-right">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/45">Total</div>
-              <div className="font-display text-2xl text-brand-100 leading-none">{fmtMinutes(total)}</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Total</div>
+              <div className="font-display text-2xl text-brand-800 leading-none">{fmtMinutes(total)}</div>
             </div>
           </>
         }
@@ -115,17 +115,17 @@ export default function AdminTimesheets() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {perUser.slice(0, 8).map((p) => (
             <div key={p.uid} className="ko-card p-4">
-              <div className="text-[11px] text-white/55 truncate">{p.user?.name || p.user?.email || p.uid}</div>
-              <div className="font-display text-xl text-brand-100">{fmtMinutes(p.min)}</div>
+              <div className="text-[11px] text-gray-500 truncate">{p.user?.name || p.user?.email || p.uid}</div>
+              <div className="font-display text-xl text-brand-800">{fmtMinutes(p.min)}</div>
             </div>
           ))}
         </div>
       )}
 
       {loading ? (
-        <div className="text-sm text-white/50">Loading…</div>
+        <div className="text-sm text-gray-500">Loading…</div>
       ) : entries.length === 0 ? (
-        <div className="ko-card p-6 text-sm text-white/55">No entries match this view.</div>
+        <div className="ko-card p-6 text-sm text-gray-500">No entries match this view.</div>
       ) : (
         <div className="ko-card overflow-hidden">
           <table className="ko-table">
@@ -145,12 +145,12 @@ export default function AdminTimesheets() {
                 const t = tasks.find((x) => x.id === e.taskId);
                 return (
                   <tr key={e.id}>
-                    <td>{u?.name || u?.email || <span className="text-white/40">unknown</span>}</td>
-                    <td className="text-white/70">{t?.title || "—"}</td>
+                    <td>{u?.name || u?.email || <span className="text-gray-400">unknown</span>}</td>
+                    <td className="text-gray-600">{t?.title || "—"}</td>
                     <td>{fmtDateTime(e.startedAt)}</td>
-                    <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-200">in progress</span>}</td>
+                    <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-700">in progress</span>}</td>
                     <td className="font-mono">{e.endedAt ? fmtMinutes(e.durationMinutes) : "—"}</td>
-                    <td className="text-white/70">{e.description || "—"}</td>
+                    <td className="text-gray-600">{e.description || "—"}</td>
                   </tr>
                 );
               })}

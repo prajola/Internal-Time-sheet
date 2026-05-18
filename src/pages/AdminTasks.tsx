@@ -53,7 +53,7 @@ export default function AdminTasks() {
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h1 className="font-display text-3xl tracking-tight">Tasks</h1>
-          <p className="text-sm text-white/55 mt-1">Create, assign and follow tasks across the team.</p>
+          <p className="text-sm text-gray-500 mt-1">Create, assign and follow tasks across the team.</p>
         </div>
         <button onClick={() => setCreating(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
           <Plus size={16} /> New task
@@ -73,9 +73,9 @@ export default function AdminTasks() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-white/50">Loading…</div>
+        <div className="text-sm text-gray-500">Loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="ko-card p-6 text-sm text-white/55">No tasks match this view.</div>
+        <div className="ko-card p-6 text-sm text-gray-500">No tasks match this view.</div>
       ) : (
         <div className="ko-card overflow-hidden">
           <table className="ko-table">
@@ -93,13 +93,13 @@ export default function AdminTasks() {
               {filtered.map((t) => (
                 <tr key={t.id}>
                   <td className="font-medium">{t.title}</td>
-                  <td>{users.find((u) => u.id === t.assigneeId)?.name || users.find((u) => u.id === t.assigneeId)?.email || <span className="text-white/40">—</span>}</td>
+                  <td>{users.find((u) => u.id === t.assigneeId)?.name || users.find((u) => u.id === t.assigneeId)?.email || <span className="text-gray-400">—</span>}</td>
                   <td><span className={statusClass(t.status)}>{t.status.replace("_", " ")}</span></td>
                   <td><span className={priorityClass(t.priority)}>{t.priority}</span></td>
-                  <td className="text-white/60">{t.dueDate ? fmtDate(t.dueDate) : "—"}</td>
+                  <td className="text-gray-500">{t.dueDate ? fmtDate(t.dueDate) : "—"}</td>
                   <td className="text-right space-x-1">
                     <button onClick={() => setEditing(t)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1"><Pencil size={12} /> Edit</button>
-                    <button onClick={() => remove(t)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1 hover:!border-red-400/40 hover:!text-red-200"><Trash2 size={12} /> Delete</button>
+                    <button onClick={() => remove(t)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1 hover:!border-red-200 hover:!text-red-700"><Trash2 size={12} /> Delete</button>
                   </td>
                 </tr>
               ))}
@@ -166,7 +166,7 @@ function TaskDialog({ task, users, onClose, onSaved }: DialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center px-4">
       <form onSubmit={save} className="ko-card-glow p-6 w-full max-w-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">{task ? "Edit task" : "New task"}</h2>
@@ -207,7 +207,7 @@ function TaskDialog({ task, users, onClose, onSaved }: DialogProps) {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 mb-1.5">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">{label}</div>
       {children}
     </div>
   );
@@ -215,15 +215,15 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 function statusClass(s: string) {
   const base = "text-[10px] uppercase tracking-[0.16em] px-2 py-0.5 rounded-full border";
-  if (s === "DONE")        return base + " border-emerald-400/40 text-emerald-200 bg-emerald-500/10";
-  if (s === "IN_PROGRESS") return base + " border-brand-400/60 text-brand-100 bg-brand-500/10";
-  if (s === "BLOCKED")     return base + " border-red-400/40 text-red-200 bg-red-500/10";
-  return base + " border-white/20 text-white/65";
+  if (s === "DONE")        return base + " border-emerald-200 text-emerald-700 bg-emerald-50";
+  if (s === "IN_PROGRESS") return base + " border-brand-400 text-brand-800 bg-brand-50";
+  if (s === "BLOCKED")     return base + " border-red-200 text-red-700 bg-red-50";
+  return base + " border-gray-300 text-gray-600";
 }
 function priorityClass(p: string) {
   const base = "text-[10px] uppercase tracking-[0.16em] px-2 py-0.5 rounded-full border";
-  if (p === "URGENT") return base + " border-red-400/50 text-red-200 bg-red-500/10";
-  if (p === "HIGH")   return base + " border-brand-400/60 text-brand-100 bg-brand-500/10";
-  if (p === "LOW")    return base + " border-white/15 text-white/60";
-  return base + " border-white/20 text-white/75";
+  if (p === "URGENT") return base + " border-red-300 text-red-700 bg-red-50";
+  if (p === "HIGH")   return base + " border-brand-400 text-brand-800 bg-brand-50";
+  if (p === "LOW")    return base + " border-gray-200 text-gray-500";
+  return base + " border-gray-300 text-gray-700";
 }

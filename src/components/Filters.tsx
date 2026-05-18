@@ -41,8 +41,8 @@ export function Filters({ value, onChange, extra }: Props) {
   return (
     <div className="ko-card p-4 flex flex-wrap items-end gap-3">
       <div>
-        <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 mb-1">Range</div>
-        <div className="inline-flex rounded-md border border-white/10 overflow-hidden">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1">Range</div>
+        <div className="inline-flex rounded-md border border-gray-200 overflow-hidden">
           {modes.map((m) => (
             <button
               key={m}
@@ -50,7 +50,7 @@ export function Filters({ value, onChange, extra }: Props) {
               onClick={() => update("mode", m)}
               className={
                 "px-3 py-1.5 text-xs " +
-                (v.mode === m ? "bg-brand-500 text-black" : "text-white/65 hover:text-white hover:bg-white/5")
+                (v.mode === m ? "bg-brand-500 text-black" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50")
               }
             >
               {m === "all" ? "All" : m[0].toUpperCase() + m.slice(1)}
@@ -99,7 +99,7 @@ export function Filters({ value, onChange, extra }: Props) {
 function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 mb-1">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1">{label}</div>
       {children}
     </div>
   );

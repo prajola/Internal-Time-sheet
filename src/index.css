@@ -3,7 +3,19 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+  --ko-bg: #ffffff;
+  --ko-bg-subtle: #f7f7f8;
+  --ko-text: #18181b;
+  --ko-text-muted: #6b7280;
+  --ko-text-dim: #9ca3af;
+  --ko-border: #e5e7eb;
+  --ko-border-strong: #d1d5db;
+  --ko-hover: #f3f4f6;
+  --ko-card: #ffffff;
+  --ko-brand: #ffa340;
+  --ko-brand-50: #fff5e8;
+  --ko-brand-100: #ffe9c8;
 }
 
 html, body, #root {
@@ -11,31 +23,32 @@ html, body, #root {
 }
 
 body {
-  background: #000;
-  color: #e8e8e8;
+  background: #ffffff;
+  color: var(--ko-text);
   font-family: 'Inter Tight', system-ui, sans-serif;
   letter-spacing: 0.005em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Brand atmosphere — subtle warm radial behind the app ───── */
+/* ── Brand atmosphere — very subtle warm wash on white ─────── */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 80% 60% at 12% -10%, rgba(255,160,80,0.10), transparent 60%),
-    radial-gradient(ellipse 80% 60% at 100% 110%, rgba(255,138,58,0.06), transparent 60%);
+    radial-gradient(ellipse 60% 50% at 8% -10%, rgba(255,160,80,0.06), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 100% 110%, rgba(255,138,58,0.04), transparent 60%);
   z-index: -1;
 }
 
 /* ── Inputs, buttons ───────────────────────────────────────── */
 @layer components {
   .ko-input {
-    @apply w-full px-3.5 py-2.5 rounded-lg text-sm bg-white/[0.03] border border-white/10 text-white placeholder:text-white/30
-           focus:outline-none focus:border-brand-400 focus:bg-white/[0.05]
+    @apply w-full px-3.5 py-2.5 rounded-lg text-sm bg-white border border-gray-300
+           text-gray-900 placeholder:text-gray-400
+           focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-400/30
            transition-colors;
   }
 
@@ -44,54 +57,55 @@ body::before {
            transition-all duration-200 cursor-pointer;
   }
   .ko-btn-primary {
-    @apply ko-btn bg-brand-400 text-black hover:bg-brand-300 active:scale-[0.98]
-           shadow-[0_0_24px_rgba(255,160,80,0.20)];
+    @apply ko-btn bg-brand-400 text-black hover:bg-brand-500 active:scale-[0.98]
+           shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_16px_rgba(255,160,80,0.18)];
   }
   .ko-btn-ghost {
-    @apply ko-btn bg-white/[0.04] text-white/85 hover:bg-white/[0.08] hover:text-white
-           border border-white/10 hover:border-white/20;
+    @apply ko-btn bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900
+           border border-gray-300 hover:border-gray-400;
   }
   .ko-btn-danger {
-    @apply ko-btn bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:text-red-200
-           border border-red-500/30 hover:border-red-500/50;
+    @apply ko-btn bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800
+           border border-red-200 hover:border-red-300;
   }
 
   .ko-card {
-    @apply rounded-2xl bg-white/[0.025] border border-white/[0.08] backdrop-blur-sm;
+    @apply rounded-xl bg-white border border-gray-200;
+    box-shadow: 0 1px 2px rgba(16,24,40,0.04);
   }
   .ko-card-glow {
     @apply ko-card;
     box-shadow:
-      inset 0 0 0 1px rgba(255,160,80,0.08),
-      0 4px 24px rgba(0,0,0,0.40);
+      0 1px 2px rgba(16,24,40,0.06),
+      0 8px 24px rgba(255,160,80,0.08);
   }
 
   .ko-pill {
     @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider;
   }
   .ko-pill-admin {
-    @apply ko-pill bg-brand-400/15 text-brand-300 border border-brand-400/30;
+    @apply ko-pill bg-brand-50 text-brand-700 border border-brand-200;
   }
   .ko-pill-employee {
-    @apply ko-pill bg-white/[0.05] text-white/65 border border-white/10;
+    @apply ko-pill bg-gray-100 text-gray-600 border border-gray-200;
   }
 
   .ko-table {
     @apply w-full text-sm border-collapse;
   }
   .ko-table thead th {
-    @apply px-3 py-2.5 text-left text-[10px] font-mono uppercase tracking-[0.14em] text-white/45 border-b border-white/[0.08];
+    @apply px-3 py-2.5 text-left text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500 border-b border-gray-200 bg-gray-50/50;
   }
   .ko-table tbody td {
-    @apply px-3 py-3 text-white/80 border-b border-white/[0.05];
+    @apply px-3 py-3 text-gray-700 border-b border-gray-100;
   }
   .ko-table tbody tr:hover {
-    @apply bg-white/[0.02];
+    @apply bg-gray-50;
   }
 }
 
 /* ── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
-::-webkit-scrollbar-thumb { background: rgba(255,160,80,0.20); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,160,80,0.40); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }

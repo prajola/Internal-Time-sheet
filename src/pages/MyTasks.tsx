@@ -34,9 +34,9 @@ export default function MyTasks() {
     <div className="space-y-6">
       <h1 className="font-display text-3xl tracking-tight">My tasks</h1>
       {loading ? (
-        <div className="text-sm text-white/50">Loading…</div>
+        <div className="text-sm text-gray-500">Loading…</div>
       ) : tasks.length === 0 ? (
-        <div className="ko-card p-6 text-sm text-white/55">No tasks assigned to you.</div>
+        <div className="ko-card p-6 text-sm text-gray-500">No tasks assigned to you.</div>
       ) : (
         <div className="grid gap-3">
           {tasks.map((t) => (
@@ -45,9 +45,9 @@ export default function MyTasks() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold">{t.title}</span>
                   <span className={priorityClass(t.priority)}>{t.priority}</span>
-                  {t.dueDate && <span className="text-xs text-white/50">due {fmtDate(t.dueDate)}</span>}
+                  {t.dueDate && <span className="text-xs text-gray-500">due {fmtDate(t.dueDate)}</span>}
                 </div>
-                {t.description && <div className="text-sm text-white/65 mt-1 whitespace-pre-wrap">{t.description}</div>}
+                {t.description && <div className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{t.description}</div>}
               </div>
               <select
                 value={t.status}
@@ -66,8 +66,8 @@ export default function MyTasks() {
 
 function priorityClass(p: string) {
   const base = "text-[10px] uppercase tracking-[0.16em] px-2 py-0.5 rounded-full border";
-  if (p === "URGENT") return base + " border-red-400/50 text-red-200 bg-red-500/10";
-  if (p === "HIGH")   return base + " border-brand-400/60 text-brand-100 bg-brand-500/10";
-  if (p === "LOW")    return base + " border-white/15 text-white/60";
-  return base + " border-white/20 text-white/75";
+  if (p === "URGENT") return base + " border-red-300 text-red-700 bg-red-50";
+  if (p === "HIGH")   return base + " border-brand-400 text-brand-800 bg-brand-50";
+  if (p === "LOW")    return base + " border-gray-200 text-gray-500";
+  return base + " border-gray-300 text-gray-700";
 }

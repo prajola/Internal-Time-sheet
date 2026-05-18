@@ -57,7 +57,7 @@ export default function AdminUsers() {
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h1 className="font-display text-3xl tracking-tight">Users</h1>
-          <p className="text-sm text-white/55 mt-1">Invite teammates, promote admins, deactivate access.</p>
+          <p className="text-sm text-gray-500 mt-1">Invite teammates, promote admins, deactivate access.</p>
         </div>
         <button onClick={() => setShowInvite(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
           <Plus size={16} /> Invite user
@@ -65,7 +65,7 @@ export default function AdminUsers() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-white/50">Loading…</div>
+        <div className="text-sm text-gray-500">Loading…</div>
       ) : (
         <div className="ko-card overflow-hidden">
           <table className="ko-table">
@@ -82,11 +82,11 @@ export default function AdminUsers() {
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
-                  <td className="font-medium">{u.name || "—"}{u.id === me?.id && <span className="text-[10px] uppercase tracking-[0.16em] text-brand-100 ml-2">you</span>}</td>
+                  <td className="font-medium">{u.name || "—"}{u.id === me?.id && <span className="text-[10px] uppercase tracking-[0.16em] text-brand-800 ml-2">you</span>}</td>
                   <td>{u.email}</td>
                   <td><span className={u.role === "ADMIN" ? "ko-pill-admin" : "ko-pill-employee"}>{u.role}</span></td>
-                  <td>{u.active ? <span className="text-emerald-300 text-xs">Active</span> : <span className="text-white/40 text-xs">Inactive</span>}</td>
-                  <td className="text-white/60">{fmtDate(u.createdAt)}</td>
+                  <td>{u.active ? <span className="text-emerald-700 text-xs">Active</span> : <span className="text-gray-400 text-xs">Inactive</span>}</td>
+                  <td className="text-gray-500">{fmtDate(u.createdAt)}</td>
                   <td className="text-right space-x-1">
                     <button onClick={() => resetPassword(u)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1" title="Email a password-reset link">
                       <KeyRound size={12} /> Reset password
@@ -96,7 +96,7 @@ export default function AdminUsers() {
                         <button onClick={() => toggleRole(u)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1">
                           <UserCog size={12} /> {u.role === "ADMIN" ? "Demote" : "Promote"}
                         </button>
-                        <button onClick={() => toggleActive(u)} className={"ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1 " + (u.active ? "hover:!border-red-400/40 hover:!text-red-200" : "")}>
+                        <button onClick={() => toggleActive(u)} className={"ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1 " + (u.active ? "hover:!border-red-200 hover:!text-red-700" : "")}>
                           {u.active ? <><UserX size={12} /> Deactivate</> : <><UserCheck size={12} /> Activate</>}
                         </button>
                       </>
@@ -133,7 +133,7 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center px-4">
       <form onSubmit={submit} className="ko-card-glow p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">Invite user</h2>
@@ -153,7 +153,7 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
             </select>
           </FieldRow>
         </div>
-        <p className="text-[11px] text-white/45 mt-4">A magic sign-in link will be emailed. It expires in 10 minutes; the invitation itself stays valid for 7 days.</p>
+        <p className="text-[11px] text-gray-500 mt-4">A magic sign-in link will be emailed. It expires in 10 minutes; the invitation itself stays valid for 7 days.</p>
         <div className="flex justify-end gap-2 mt-5">
           <button type="button" onClick={onClose} className="ko-btn-ghost h-10 px-4 text-sm">Cancel</button>
           <button type="submit" disabled={busy || !email} className="ko-btn-primary h-10 px-5 text-sm">{busy ? "Sending…" : "Send invite"}</button>
@@ -166,7 +166,7 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 mb-1.5">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">{label}</div>
       {children}
     </div>
   );

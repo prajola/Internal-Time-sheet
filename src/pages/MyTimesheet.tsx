@@ -57,14 +57,14 @@ export default function MyTimesheet() {
         onChange={setFilter}
         extra={
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-white/45">Total</div>
-            <div className="font-display text-2xl text-brand-100 leading-none">{fmtMinutes(total)}</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Total</div>
+            <div className="font-display text-2xl text-brand-800 leading-none">{fmtMinutes(total)}</div>
           </div>
         }
       />
 
       {entries.length === 0 ? (
-        <div className="ko-card p-6 text-sm text-white/55">No entries match the current filter.</div>
+        <div className="ko-card p-6 text-sm text-gray-500">No entries match the current filter.</div>
       ) : (
         <div className="ko-card overflow-hidden">
           <table className="ko-table">
@@ -82,15 +82,15 @@ export default function MyTimesheet() {
               {entries.map((e) => (
                 <tr key={e.id}>
                   <td>{fmtDateTime(e.startedAt)}</td>
-                  <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-200">in progress</span>}</td>
+                  <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-700">in progress</span>}</td>
                   <td className="font-mono">{e.endedAt ? fmtMinutes(e.durationMinutes) : "—"}</td>
-                  <td className="text-white/70">{tasks.find((t) => t.id === e.taskId)?.title || "—"}</td>
-                  <td className="text-white/70">{e.description || "—"}</td>
+                  <td className="text-gray-600">{tasks.find((t) => t.id === e.taskId)?.title || "—"}</td>
+                  <td className="text-gray-600">{e.description || "—"}</td>
                   <td className="text-right space-x-1">
                     <button className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1" onClick={() => setEditing(e)}>
                       <Pencil size={12} /> Edit
                     </button>
-                    <button className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1 hover:!border-red-400/40 hover:!text-red-200" onClick={() => remove(e)}>
+                    <button className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1 hover:!border-red-200 hover:!text-red-700" onClick={() => remove(e)}>
                       <Trash2 size={12} /> Delete
                     </button>
                   </td>
@@ -154,7 +154,7 @@ function EntryDialog({ entry, tasks, onClose, onSaved }: DialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center px-4">
       <div className="ko-card-glow p-6 w-full max-w-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">{entry ? "Edit time entry" : "New time entry"}</h2>
@@ -189,7 +189,7 @@ function EntryDialog({ entry, tasks, onClose, onSaved }: DialogProps) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 mb-1.5">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">{label}</div>
       {children}
     </div>
   );
