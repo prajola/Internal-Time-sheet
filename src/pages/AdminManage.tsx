@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Search, KeyRound, LogOut, UserCog, UserX, UserCheck, Trash2,
-  Shield, Calendar, ListChecks, Clock, AlertTriangle, Mail,
+  Shield, Calendar, ListChecks, Clock, AlertTriangle, Mail, Play,
 } from "lucide-react";
 import { Link } from "wouter";
 import { api } from "../lib/api";
@@ -16,6 +16,8 @@ export default function AdminManage() {
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [openEntries, setOpenEntries] = useState<Record<string, TimeEntry>>({}); // userId → open entry
+  const [tickNow, setTickNow] = useState(Date.now());
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,6 +35,30 @@ export default function AdminManage() {
     } catch (e: any) { err(e?.message || "Failed to load"); }
   }
   useEffect(() => { loadAll(); }, []);
+
+  // Currently-clocked-in map. Polls every 15s so the badge in the left
+  // rail + the live timer in the detail card update without a refresh.
+  async function loadOpenEntries() {
+    try {
+      const r = await api.get<{ items: Array<{ entry: TimeEntry; user: User }> }>(
+        "/api/time-entries?openAll=1",
+      );
+      const map: Record<string, TimeEntry> = {};
+      for (const it of r.items || []) map[it.entry.userId] = it.entry;
+      setOpenEntries(map);
+    } catch { /* silent — admin still has stale data */ }
+  }
+  useEffect(() => {
+    loadOpenEntries();
+    const id = setInterval(loadOpenEntries, 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Drives the live timer on the selected-user detail card.
+  useEffect(() => {
+    const id = setInterval(() => setTickNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   async function loadEntriesFor(userId: string) {
     try {
@@ -188,34 +214,46 @@ export default function AdminManage() {
             {filtered.length === 0 ? (
               <div className="px-4 py-6 text-sm text-gray-500 text-center">No users match.</div>
             ) : (
-              filtered.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => setSelectedId(u.id)}
-                  className={
-                    "w-full text-left px-3 py-2.5 border-b border-gray-100 last:border-b-0 transition " +
-                    (u.id === selectedId ? "bg-brand-50" : "hover:bg-gray-50")
-                  }
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900 truncate">
-                          {u.name || u.email}
-                        </span>
-                        {u.id === me?.id && (
-                          <span className="text-[9px] uppercase tracking-[0.16em] text-brand-800">you</span>
-                        )}
+              filtered.map((u) => {
+                const isClockedIn = Boolean(openEntries[u.id]);
+                return (
+                  <button
+                    key={u.id}
+                    onClick={() => setSelectedId(u.id)}
+                    className={
+                      "w-full text-left px-3 py-2.5 border-b border-gray-100 last:border-b-0 transition " +
+                      (u.id === selectedId ? "bg-brand-50" : "hover:bg-gray-50")
+                    }
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          {isClockedIn && (
+                            <span className="inline-flex items-center" title="Currently clocked in">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            </span>
+                          )}
+                          <span className="text-sm font-medium text-gray-900 truncate">
+                            {u.name || u.email}
+                          </span>
+                          {u.id === me?.id && (
+                            <span className="text-[9px] uppercase tracking-[0.16em] text-brand-800">you</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-gray-500 truncate">
+                          {isClockedIn
+                            ? <span className="text-emerald-700">Clocked in · {elapsed(openEntries[u.id]!.startedAt, tickNow)}</span>
+                            : u.email}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-gray-500 truncate">{u.email}</div>
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <span className={u.role === "ADMIN" ? "ko-pill-admin" : "ko-pill-employee"} style={{ fontSize: 9, padding: "2px 6px" }}>{u.role}</span>
+                        {!u.active && <span className="text-[9px] uppercase tracking-[0.14em] text-gray-400">inactive</span>}
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <span className={u.role === "ADMIN" ? "ko-pill-admin" : "ko-pill-employee"} style={{ fontSize: 9, padding: "2px 6px" }}>{u.role}</span>
-                      {!u.active && <span className="text-[9px] uppercase tracking-[0.14em] text-gray-400">inactive</span>}
-                    </div>
-                  </div>
-                </button>
-              ))
+                  </button>
+                );
+              })
             )}
           </div>
         </aside>
@@ -301,6 +339,35 @@ export default function AdminManage() {
                   )}
                 </div>
               </div>
+
+              {/* Currently clocked in — only shown when this user has an open entry */}
+              {selected && openEntries[selected.id] && (
+                <div className="ko-card p-4 border-emerald-300 bg-emerald-50/40">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+                        <Play size={14} className="text-emerald-700" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-800 font-semibold inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Currently clocked in
+                        </div>
+                        <div className="text-sm text-gray-800 mt-0.5">
+                          Started {fmtDateTime(openEntries[selected.id].startedAt)}
+                          {openEntries[selected.id].description ? ` · ${openEntries[selected.id].description}` : ""}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-emerald-800">Elapsed</div>
+                      <div className="font-mono text-2xl font-semibold tabular-nums text-emerald-700">
+                        {elapsed(openEntries[selected.id].startedAt, tickNow)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Stats row */}
               <div className="grid grid-cols-3 gap-3">
@@ -413,4 +480,15 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
       <div className="font-display text-xl text-gray-900 mt-1">{value}</div>
     </div>
   );
+}
+
+/** HH:MM:SS since startedAt up to nowMs. Recomputed every second. */
+function elapsed(startedAtIso: string, nowMs: number): string {
+  const start = new Date(startedAtIso).getTime();
+  const total = Math.max(0, Math.floor((nowMs - start) / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }

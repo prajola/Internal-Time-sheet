@@ -49,7 +49,9 @@ export type NotificationKind =
   | "account-disabled"
   | "account-enabled"
   | "account-password-reset"
-  | "account-force-signout";
+  | "account-force-signout"
+  | "clock-in"
+  | "clock-out";
 
 export interface Notification {
   id: string;

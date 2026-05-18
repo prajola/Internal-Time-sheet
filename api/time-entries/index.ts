@@ -17,6 +17,7 @@ import {
   listEntriesForUser,
   listAllEntries,
   upsertEntry,
+  listUsers,
 } from "../_lib/db.js";
 import {
   uuid,
@@ -29,8 +30,30 @@ import {
   applyEntryFilter,
   EntryFilter,
 } from "../_lib/helpers.js";
-import { notifyAdmin } from "../_lib/notify.js";
-import type { TimeEntry } from "../_lib/types.js";
+import { notifyAdmin, notifyUser } from "../_lib/notify.js";
+import type { TimeEntry, User } from "../_lib/types.js";
+
+async function pingAdmins(opts: {
+  actor: User;
+  kind: "clock-in" | "clock-out";
+  title: string;
+  body: string;
+}): Promise<void> {
+  const users = await listUsers();
+  const admins = users.filter((u) => u.role === "ADMIN" && u.active && u.id !== opts.actor.id);
+  await Promise.all(
+    admins.map((a) =>
+      notifyUser({
+        to: a,
+        kind: opts.kind,
+        title: opts.title,
+        body: opts.body,
+        link: "/manage",
+        from: { id: opts.actor.id, name: opts.actor.name, email: opts.actor.email },
+      }).catch((err) => console.warn("[time-entries] admin ping failed:", err))
+    ),
+  );
+}
 
 interface PostBody {
   // Action shortcuts:
@@ -53,6 +76,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const mine = await listEntriesForUser(me.id);
       const open = mine.find((e) => !e.endedAt) ?? null;
       return ok(res, { open });
+    }
+
+    // ?openAll=1 → admin only: every user that's currently clocked in.
+    // Returns an array of { user, entry } pairs so the UI can render a
+    // live "Currently clocked in" panel without N+1 lookups.
+    if (
+      typeof req.query.openAll === "string" &&
+      req.query.openAll !== "0" &&
+      req.query.openAll !== "false"
+    ) {
+      if (me.role !== "ADMIN") {
+        res.status(403).json({ error: "Admin only" });
+        return;
+      }
+      const all = await listAllEntries();
+      const open = all.filter((e) => !e.endedAt);
+      const users = await listUsers();
+      const items = open
+        .map((entry) => {
+          const u = users.find((x) => x.id === entry.userId);
+          if (!u) return null;
+          return {
+            entry,
+            user: {
+              id: u.id,
+              email: u.email,
+              name: u.name,
+              role: u.role,
+              active: u.active,
+            },
+          };
+        })
+        .filter(Boolean);
+      return ok(res, { items });
     }
 
     const f: EntryFilter = {
@@ -104,11 +161,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           updatedAt: nowIso(),
         };
         await upsertEntry(entry);
-        await notifyAdmin({
-          subject: "Clock-in",
-          summary: `${me.name} clocked in.`,
-          details: { Started: entry.startedAt, TaskId: entry.taskId ?? "—", Note: entry.description || "—" },
-          byUser: me,
+        // Ping every admin's notification bell. This shows up in real time
+        // in their /manage view.
+        await pingAdmins({
+          actor: me,
+          kind: "clock-in",
+          title: `${me.name || me.email} clocked in`,
+          body: entry.description
+            ? `Started working: ${entry.description}`
+            : "Started a new work session",
         });
         return ok(res, { entry }, 201);
       }
@@ -123,17 +184,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         updatedAt: endedAt,
       };
       await upsertEntry(closed);
-      await notifyAdmin({
-        subject: "Clock-out",
-        summary: `${me.name} clocked out (${closed.durationMinutes} min).`,
-        details: {
-          Started: closed.startedAt,
-          Ended: closed.endedAt!,
-          Minutes: closed.durationMinutes,
-          TaskId: closed.taskId ?? "—",
-          Note: closed.description || "—",
-        },
-        byUser: me,
+      const hours = Math.floor(closed.durationMinutes / 60);
+      const mins = closed.durationMinutes % 60;
+      const durStr =
+        hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      await pingAdmins({
+        actor: me,
+        kind: "clock-out",
+        title: `${me.name || me.email} clocked out`,
+        body: `Worked ${durStr}${closed.description ? ` · ${closed.description}` : ""}`,
       });
       return ok(res, { entry: closed });
     }
