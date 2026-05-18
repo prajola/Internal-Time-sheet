@@ -12,7 +12,7 @@ export default function ForgotPassword() {
     e.preventDefault();
     setBusy(true); setErr(null);
     try {
-      await api.post("/api/auth/forgot-password", { email: email.trim() });
+      await api.post("/api/auth/start", { email: email.trim(), mode: "reset" });
       setSent(true);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not send link");
