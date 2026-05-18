@@ -13,7 +13,7 @@ import {
   badRequest,
   methodNotAllowed,
 } from "../_lib/helpers.js";
-import { notifyAdmin, notifyAssignee, notifyUser } from "../_lib/notify.js";
+import { notifyAssignee, notifyUser } from "../_lib/notify.js";
 import type { Task, TaskPriority, TaskStatus, User } from "../_lib/types.js";
 
 interface CreateBody {
@@ -42,13 +42,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const title = (body.title || "").trim();
     if (!title) return badRequest(res, "title required");
 
-    let assigneeName = "Unassigned";
     let assigneeUser: User | null = null;
     if (body.assigneeId) {
       const a = await findUserById(body.assigneeId);
       if (!a) return badRequest(res, "assigneeId does not match any user");
       assigneeUser = a;
-      assigneeName = a.name + " <" + a.email + ">";
     }
 
     const t: Task = {
@@ -65,7 +63,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     await upsertTask(t);
 
-    // Email the assignee directly (full task email) + record an in-app notification.
+    // Notify only the assignee — admins do not receive an audit email
+    // for actions they performed themselves (it's just inbox noise).
     if (assigneeUser) {
       await notifyAssignee({ task: t, assignee: assigneeUser, assignedBy: admin });
       await notifyUser({
@@ -78,20 +77,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         from: { id: admin.id, name: admin.name, email: admin.email },
       });
     }
-
-    await notifyAdmin({
-      subject: "Task created",
-      summary: `${admin.name} created task "${t.title}".`,
-      details: {
-        Title: t.title,
-        Assignee: assigneeName,
-        Priority: t.priority,
-        Status: t.status,
-        Due: t.dueDate ?? "—",
-        "Assignee notified": assigneeUser ? "yes" : "no",
-      },
-      byUser: admin,
-    });
 
     return ok(res, { task: t }, 201);
   }

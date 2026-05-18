@@ -14,7 +14,7 @@ import {
   notFound,
   methodNotAllowed,
 } from "../_lib/helpers.js";
-import { notifyAdmin, notifyAssignee, notifyUser } from "../_lib/notify.js";
+import { notifyAssignee, notifyUser } from "../_lib/notify.js";
 import { taskStatusEmail } from "../_lib/email.js";
 import type { Task, TaskPriority, TaskStatus, User } from "../_lib/types.js";
 
@@ -112,7 +112,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await upsertTask(next);
 
     // Notify the new assignee (if any) that they own this task now.
-    let assigneeNotified = false;
     if (assigneeChanged && newAssignee) {
       await notifyAssignee({
         task: next,
@@ -129,7 +128,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         taskId: next.id,
         from: { id: me.id, name: me.name, email: me.email },
       });
-      assigneeNotified = true;
     }
 
     // Status change by an employee → notify admins (so they see "marked done" in real time).
@@ -162,7 +160,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           email: tpl,
         });
       }
-      // Bell-only for the other admins (avoid email noise — they all get notifyAdmin below too).
+      // Bell-only for the other admins (avoid email noise — each admin sees this in their bell).
       for (const a of admins) {
         if (creator && a.id === creator.id) continue;
         if (a.id === me.id) continue;
@@ -211,16 +209,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    await notifyAdmin({
-      subject: "Task updated",
-      summary: `${me.name} updated task "${t.title}".`,
-      details: {
-        Task: t.title,
-        ...diff,
-        ...(assigneeChanged ? { "Assignee notified": assigneeNotified ? "yes" : "no" } : {}),
-      },
-      byUser: me,
-    });
+    // No catch-all audit email here. Targeted recipients above (assignee
+    // and/or admins) already receive the right notifications via notifyUser.
 
     return ok(res, { task: next });
   }
@@ -246,13 +236,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
     }
-
-    await notifyAdmin({
-      subject: "Task deleted",
-      summary: `${admin.name} deleted task "${t.title}".`,
-      details: { Task: t.title, "Was assigned to": t.assigneeId ?? "—" },
-      byUser: admin,
-    });
     return ok(res, { success: true });
   }
 
