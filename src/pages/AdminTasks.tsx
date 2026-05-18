@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, X, Pencil, Trash2 } from "lucide-react";
+import { Plus, X, Pencil, Trash2, ListChecks } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "../components/Toast";
+import { PageHeader } from "../components/PageHeader";
+import { EmptyState } from "../components/EmptyState";
 import { fmtDate } from "../lib/format";
 import type { Task, TaskPriority, TaskStatus, User } from "../types";
 
@@ -49,16 +51,18 @@ export default function AdminTasks() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="font-display text-3xl tracking-tight">Tasks</h1>
-          <p className="text-sm text-gray-500 mt-1">Create, assign and follow tasks across the team.</p>
-        </div>
-        <button onClick={() => setCreating(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
-          <Plus size={16} /> New task
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        icon={<ListChecks size={18} />}
+        eyebrow="Administration"
+        title="Tasks"
+        description="Create, assign and follow tasks across the team."
+        actions={
+          <button onClick={() => setCreating(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
+            <Plus size={16} /> New task
+          </button>
+        }
+      />
 
       <div className="ko-card p-3 flex gap-3 flex-wrap">
         <select className="ko-input h-9 w-44" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
@@ -75,7 +79,16 @@ export default function AdminTasks() {
       {loading ? (
         <div className="text-sm text-gray-500">Loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="ko-card p-6 text-sm text-gray-500">No tasks match this view.</div>
+        <div className="ko-card">
+          <EmptyState
+            icon={<ListChecks size={20} />}
+            title="No tasks here"
+            description={tasks.length === 0 ? "Create the first task to get the team moving." : "Try changing the filters above."}
+            action={tasks.length === 0
+              ? <button onClick={() => setCreating(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5"><Plus size={16} /> New task</button>
+              : undefined}
+          />
+        </div>
       ) : (
         <div className="ko-card overflow-hidden">
           <table className="ko-table">
@@ -166,7 +179,7 @@ function TaskDialog({ task, users, onClose, onSaved }: DialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
       <form onSubmit={save} className="ko-card-glow p-6 w-full max-w-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">{task ? "Edit task" : "New task"}</h2>

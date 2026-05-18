@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, CalendarRange, Clock } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "../components/Toast";
 import { Filters, FilterValue, buildQuery } from "../components/Filters";
+import { PageHeader } from "../components/PageHeader";
+import { EmptyState } from "../components/EmptyState";
 import { fmtDateTime, fmtMinutes, todayYmd } from "../lib/format";
 import type { Task, TimeEntry, User } from "../types";
 
@@ -74,15 +76,17 @@ export default function AdminTimesheets() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="font-display text-3xl tracking-tight">All timesheets</h1>
-          <p className="text-sm text-gray-500 mt-1">Every clock-in across every user, filterable by date, user and task.</p>
-        </div>
-        <button onClick={downloadCsv} className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5">
-          <Download size={14} /> Export CSV
-        </button>
-      </div>
+      <PageHeader
+        icon={<CalendarRange size={18} />}
+        eyebrow="Administration"
+        title="All timesheets"
+        description="Every clock-in across every user, filterable by date, user and task."
+        actions={
+          <button onClick={downloadCsv} className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5">
+            <Download size={14} /> Export CSV
+          </button>
+        }
+      />
 
       <Filters
         value={filter}
@@ -125,7 +129,13 @@ export default function AdminTimesheets() {
       {loading ? (
         <div className="text-sm text-gray-500">Loading…</div>
       ) : entries.length === 0 ? (
-        <div className="ko-card p-6 text-sm text-gray-500">No entries match this view.</div>
+        <div className="ko-card">
+          <EmptyState
+            icon={<Clock size={20} />}
+            title="No entries in this view"
+            description="Try widening the date range, or pick a different user/task in the filters above."
+          />
+        </div>
       ) : (
         <div className="ko-card overflow-hidden">
           <table className="ko-table">

@@ -138,18 +138,27 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-[460px]">
+    <div className="min-h-screen flex items-center justify-center px-4 py-10 relative">
+      {/* Subtle brand wash behind the card */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(700px 500px at 50% 10%, rgba(255,160,80,0.10), transparent 60%)",
+        }}
+      />
+      <div className="w-full max-w-[460px] relative ko-fade-in-up">
         {/* Brand */}
-        <div className="flex items-center gap-2.5 mb-5">
-          <div className="w-7 h-7 rounded-md bg-gradient-to-br from-brand-300 to-brand-500 flex items-center justify-center text-black font-display font-bold text-sm">K</div>
-          <div className="leading-tight">
-            <div className="font-display text-[15px] font-semibold tracking-tight text-gray-900">KubeGraf</div>
+        <div className="flex items-center justify-center gap-2.5 mb-6">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-300 to-brand-500 flex items-center justify-center text-black font-display font-bold text-base shadow-[0_4px_12px_rgba(255,160,80,0.35)]">K</div>
+          <div className="leading-tight text-left">
+            <div className="font-display text-[16px] font-semibold tracking-tight text-gray-900">KubeGraf</div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Internal Time Sheet</div>
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
+        <div className="ko-card-elevated p-8">
           {resetSent ? (
             <div className="text-center py-2">
               <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-brand-50 border border-brand-200 flex items-center justify-center">

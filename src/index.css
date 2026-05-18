@@ -5,17 +5,18 @@
 :root {
   color-scheme: light;
   --ko-bg: #ffffff;
-  --ko-bg-subtle: #f7f7f8;
+  --ko-bg-tint: #fbfaf8;
   --ko-text: #18181b;
   --ko-text-muted: #6b7280;
   --ko-text-dim: #9ca3af;
-  --ko-border: #e5e7eb;
-  --ko-border-strong: #d1d5db;
-  --ko-hover: #f3f4f6;
-  --ko-card: #ffffff;
+  --ko-border: #e8e8eb;
+  --ko-border-strong: #d4d4d8;
+  --ko-hover: #f5f5f7;
   --ko-brand: #ffa340;
-  --ko-brand-50: #fff5e8;
-  --ko-brand-100: #ffe9c8;
+  --ko-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --ko-shadow-md: 0 4px 12px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --ko-shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.10), 0 2px 6px rgba(16, 24, 40, 0.04);
+  --ko-shadow-brand: 0 8px 24px rgba(255, 160, 80, 0.18), 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 html, body, #root {
@@ -23,89 +24,177 @@ html, body, #root {
 }
 
 body {
-  background: #ffffff;
+  background: var(--ko-bg-tint);
   color: var(--ko-text);
   font-family: 'Inter Tight', system-ui, sans-serif;
-  letter-spacing: 0.005em;
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Brand atmosphere — very subtle warm wash on white ─────── */
+/* ── Brand atmosphere — soft warm gradient corners ─────────── */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 60% 50% at 8% -10%, rgba(255,160,80,0.06), transparent 60%),
-    radial-gradient(ellipse 50% 40% at 100% 110%, rgba(255,138,58,0.04), transparent 60%);
+    radial-gradient(ellipse 800px 600px at 0% -10%, rgba(255, 160, 80, 0.07), transparent 50%),
+    radial-gradient(ellipse 700px 500px at 100% 110%, rgba(255, 138, 58, 0.05), transparent 55%);
   z-index: -1;
 }
 
-/* ── Inputs, buttons ───────────────────────────────────────── */
+/* ── Focus rings (accessibility + polish) ──────────────────── */
+*:focus-visible {
+  outline: 2px solid rgba(255, 160, 80, 0.6);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(255, 160, 80, 0.5);
+  outline-offset: 1px;
+}
+
+/* ── Selection ─────────────────────────────────────────────── */
+::selection { background: rgba(255, 160, 80, 0.25); color: #111; }
+
+/* ── Inputs, buttons, cards, pills, tables ─────────────────── */
 @layer components {
   .ko-input {
     @apply w-full px-3.5 py-2.5 rounded-lg text-sm bg-white border border-gray-300
            text-gray-900 placeholder:text-gray-400
            focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-400/30
-           transition-colors;
+           transition-all duration-150;
+  }
+  .ko-input:disabled {
+    @apply bg-gray-50 text-gray-400 cursor-not-allowed;
   }
 
   .ko-btn {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-           transition-all duration-200 cursor-pointer;
+           transition-all duration-150 cursor-pointer select-none
+           active:translate-y-[0.5px] disabled:active:translate-y-0;
   }
   .ko-btn-primary {
-    @apply ko-btn bg-brand-400 text-black hover:bg-brand-500 active:scale-[0.98]
-           shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_16px_rgba(255,160,80,0.18)];
+    @apply ko-btn bg-brand-400 text-black hover:bg-brand-500 disabled:bg-brand-200 disabled:text-gray-500 disabled:cursor-not-allowed;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 0 0 1px rgba(255, 160, 80, 0.25);
   }
+  .ko-btn-primary:hover:not(:disabled) {
+    box-shadow: 0 4px 12px rgba(255, 160, 80, 0.25), 0 1px 2px rgba(16, 24, 40, 0.08);
+  }
+
   .ko-btn-ghost {
     @apply ko-btn bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900
-           border border-gray-300 hover:border-gray-400;
+           border border-gray-200 hover:border-gray-300;
   }
   .ko-btn-danger {
-    @apply ko-btn bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800
+    @apply ko-btn bg-white text-red-700 hover:bg-red-50 hover:text-red-800
            border border-red-200 hover:border-red-300;
   }
 
+  /* Cards: clean, subtle elevation, smooth hover */
   .ko-card {
     @apply rounded-xl bg-white border border-gray-200;
-    box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+    box-shadow: var(--ko-shadow-sm);
+    transition: box-shadow 150ms ease, transform 150ms ease, border-color 150ms ease;
   }
   .ko-card-glow {
     @apply ko-card;
-    box-shadow:
-      0 1px 2px rgba(16,24,40,0.06),
-      0 8px 24px rgba(255,160,80,0.08);
+    box-shadow: var(--ko-shadow-md);
+  }
+  .ko-card-interactive {
+    @apply ko-card cursor-pointer;
+  }
+  .ko-card-interactive:hover {
+    box-shadow: var(--ko-shadow-md);
+    border-color: var(--ko-border-strong);
+  }
+  .ko-card-elevated {
+    @apply rounded-xl bg-white border border-gray-200;
+    box-shadow: var(--ko-shadow-lg);
   }
 
+  /* Pills */
   .ko-pill {
     @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider;
   }
   .ko-pill-admin {
-    @apply ko-pill bg-brand-50 text-brand-700 border border-brand-200;
+    @apply ko-pill bg-brand-50 text-brand-800 border border-brand-200;
   }
   .ko-pill-employee {
-    @apply ko-pill bg-gray-100 text-gray-600 border border-gray-200;
+    @apply ko-pill bg-gray-100 text-gray-700 border border-gray-200;
   }
 
+  /* Tables */
   .ko-table {
     @apply w-full text-sm border-collapse;
   }
   .ko-table thead th {
-    @apply px-3 py-2.5 text-left text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500 border-b border-gray-200 bg-gray-50/50;
+    @apply px-3 py-2.5 text-left text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500 border-b border-gray-200 bg-gray-50/60;
   }
   .ko-table tbody td {
     @apply px-3 py-3 text-gray-700 border-b border-gray-100;
   }
+  .ko-table tbody tr {
+    transition: background 100ms ease;
+  }
   .ko-table tbody tr:hover {
-    @apply bg-gray-50;
+    @apply bg-gray-50/70;
+  }
+  .ko-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  /* Headings */
+  .ko-h1 {
+    @apply font-display text-[28px] md:text-[32px] font-semibold tracking-tight text-gray-900;
+    letter-spacing: -0.02em;
+  }
+  .ko-h2 {
+    @apply font-display text-xl font-semibold tracking-tight text-gray-900;
+  }
+  .ko-eyebrow {
+    @apply text-[11px] uppercase tracking-[0.16em] text-gray-500 font-medium;
   }
 }
 
 /* ── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
+::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.10); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.20); background-clip: padding-box; }
+
+/* ── Animations ────────────────────────────────────────────── */
+@keyframes ko-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ko-fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ko-pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+
+.ko-fade-in    { animation: ko-fade-in 250ms ease both; }
+.ko-fade-in-up { animation: ko-fade-in-up 350ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.ko-pulse-soft { animation: ko-pulse-soft 2s ease-in-out infinite; }
+
+/* ── Skeleton loader ───────────────────────────────────────── */
+.ko-skel {
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: ko-skel-pulse 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+@keyframes ko-skel-pulse {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

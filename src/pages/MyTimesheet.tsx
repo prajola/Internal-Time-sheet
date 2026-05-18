@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Trash2, Plus, X } from "lucide-react";
+import { Pencil, Trash2, Plus, X, Clock } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../components/Toast";
 import { Filters, FilterValue, buildQuery } from "../components/Filters";
+import { PageHeader } from "../components/PageHeader";
+import { EmptyState } from "../components/EmptyState";
 import { fmtDateTime, fmtMinutes, fromLocalInputValue, toLocalInputValue, todayYmd } from "../lib/format";
 import type { Task, TimeEntry } from "../types";
 
@@ -45,12 +47,17 @@ export default function MyTimesheet() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <h1 className="font-display text-3xl tracking-tight">My timesheet</h1>
-        <button onClick={() => setShowAdd(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
-          <Plus size={16} /> Add entry
-        </button>
-      </div>
+      <PageHeader
+        icon={<Clock size={18} />}
+        eyebrow="Workspace"
+        title="My timesheet"
+        description="Your tracked time, filterable by day, week, month or year."
+        actions={
+          <button onClick={() => setShowAdd(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
+            <Plus size={16} /> Add entry
+          </button>
+        }
+      />
 
       <Filters
         value={filter}
@@ -64,7 +71,13 @@ export default function MyTimesheet() {
       />
 
       {entries.length === 0 ? (
-        <div className="ko-card p-6 text-sm text-gray-500">No entries match the current filter.</div>
+        <div className="ko-card">
+          <EmptyState
+            icon={<Clock size={20} />}
+            title="No entries in this view"
+            description="Try a wider date range, or clock in from the dashboard."
+          />
+        </div>
       ) : (
         <div className="ko-card overflow-hidden">
           <table className="ko-table">
@@ -154,7 +167,7 @@ function EntryDialog({ entry, tasks, onClose, onSaved }: DialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
       <div className="ko-card-glow p-6 w-full max-w-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">{entry ? "Edit time entry" : "New time entry"}</h2>

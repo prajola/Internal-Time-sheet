@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Plus, X, UserCog, UserX, UserCheck, KeyRound } from "lucide-react";
+import { Plus, X, UserCog, UserX, UserCheck, KeyRound, Users as UsersIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../components/Toast";
+import { PageHeader } from "../components/PageHeader";
+import { EmptyState } from "../components/EmptyState";
 import { fmtDate } from "../lib/format";
 import type { Role, User } from "../types";
 
@@ -53,19 +55,36 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="font-display text-3xl tracking-tight">Users</h1>
-          <p className="text-sm text-gray-500 mt-1">Invite teammates, promote admins, deactivate access.</p>
-        </div>
-        <button onClick={() => setShowInvite(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
-          <Plus size={16} /> Invite user
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        icon={<UsersIcon size={18} />}
+        eyebrow="Administration"
+        title="Users"
+        description="Invite teammates, promote admins, manage access."
+        actions={
+          <button onClick={() => setShowInvite(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
+            <Plus size={16} /> Invite user
+          </button>
+        }
+      />
 
       {loading ? (
-        <div className="text-sm text-gray-500">Loading…</div>
+        <div className="ko-card p-4 space-y-3">
+          {[1, 2, 3].map((i) => <div key={i} className="ko-skel h-10 w-full" />)}
+        </div>
+      ) : users.length === 0 ? (
+        <div className="ko-card">
+          <EmptyState
+            icon={<UsersIcon size={20} />}
+            title="No users yet"
+            description="Invite teammates to start tracking their time and tasks."
+            action={
+              <button onClick={() => setShowInvite(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
+                <Plus size={16} /> Invite user
+              </button>
+            }
+          />
+        </div>
       ) : (
         <div className="ko-card overflow-hidden">
           <table className="ko-table">
@@ -133,7 +152,7 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
       <form onSubmit={submit} className="ko-card-glow p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">Invite user</h2>

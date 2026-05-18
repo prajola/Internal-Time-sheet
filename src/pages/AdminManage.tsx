@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Search, KeyRound, LogOut, UserCog, UserX, UserCheck, Trash2,
-  Shield, Calendar, ListChecks, Clock, AlertTriangle, Mail, Play,
-  Activity, FileText, History, ShieldCheck, CalendarDays, Hourglass,
+  Shield, ListChecks, Clock, AlertTriangle, Mail, Play,
+  Activity, History, ShieldCheck, CalendarDays,
   ArrowUpRight, ArrowDownRight, CheckCircle2, CircleDot,
 } from "lucide-react";
+import { PageHeader } from "../components/PageHeader";
 import { Link } from "wouter";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
@@ -243,16 +244,13 @@ export default function AdminManage() {
     users.filter((u) => u.role === "ADMIN" && u.active && u.id !== selected.id).length === 0;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Shield size={18} className="text-brand-600" />
-          <h1 className="font-display text-3xl tracking-tight">Manage</h1>
-        </div>
-        <p className="text-sm text-gray-500">
-          Full administrative control over team members — passwords, sessions, roles, access, deletion.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        icon={<Shield size={18} />}
+        eyebrow="Administration"
+        title="Manage"
+        description="Full administrative control over team members — passwords, sessions, roles, access, deletion."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5">
         {/* ── Left: user search + list ────────────────────── */}
@@ -348,7 +346,7 @@ export default function AdminManage() {
                         <Mail size={12} className="text-gray-400" /> {selected.email}
                       </div>
                       <div className="text-[12px] text-gray-500 mt-0.5 flex items-center gap-1.5">
-                        <Calendar size={11} className="text-gray-400" /> Joined {fmtDate(selected.createdAt)}
+                        <CalendarDays size={11} className="text-gray-400" /> Joined {fmtDate(selected.createdAt)}
                         {selected.passwordSetAt && <> · Password set {fmtDate(selected.passwordSetAt)}</>}
                         {selected.sessionsRevokedAt && <> · Sessions revoked {fmtDate(selected.sessionsRevokedAt)}</>}
                       </div>
