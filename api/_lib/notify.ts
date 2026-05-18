@@ -3,8 +3,8 @@
  * primary mutation. Pulls ADMIN_NOTIFY_EMAIL from env, defaults to
  * kubegraf@gmail.com so the user gets emails out-of-the-box.
  */
-import type { User } from "./types";
-import { adminNotifyEmail, sendMail } from "./email";
+import type { User } from "./types.js";
+import { adminNotifyEmail, sendMail } from "./email.js";
 
 const DEFAULT_NOTIFY = "kubegraf@gmail.com";
 

@@ -2,7 +2,7 @@
  * GET /api/auth/me — returns the currently signed-in user, or 401.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getSession } from "../_lib/auth";
+import { getSession } from "../_lib/auth.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {

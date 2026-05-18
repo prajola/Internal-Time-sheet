@@ -13,10 +13,10 @@
  * have accounts), but no email is sent.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { findUserByEmail, listUsers, upsertUser, findInvitationByEmail, upsertInvitation } from "../_lib/db";
-import { issueMagicToken } from "../_lib/auth";
-import { sendMail, magicLinkEmail } from "../_lib/email";
-import { uuid, nowIso, normalizeEmail, emailLooksValid, readBody, ok, badRequest, methodNotAllowed } from "../_lib/helpers";
+import { findUserByEmail, listUsers, upsertUser, findInvitationByEmail, upsertInvitation } from "../_lib/db.js";
+import { issueMagicToken } from "../_lib/auth.js";
+import { sendMail, magicLinkEmail } from "../_lib/email.js";
+import { uuid, nowIso, normalizeEmail, emailLooksValid, readBody, ok, badRequest, methodNotAllowed } from "../_lib/helpers.js";
 
 interface Body { email?: string }
 

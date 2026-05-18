@@ -15,7 +15,7 @@
  * relay's `submissions/` pattern).
  */
 import { list, put } from "@vercel/blob";
-import type { User, Task, Invitation, TimeEntry } from "./types";
+import type { User, Task, Invitation, TimeEntry } from "./types.js";
 
 const COLL = {
   users: "db/users.json",

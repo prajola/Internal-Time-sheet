@@ -6,8 +6,8 @@
  * GET  /api/time-entries/clock     — returns the open entry for the current user, or null.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAuth } from "../_lib/auth";
-import { listEntriesForUser, upsertEntry } from "../_lib/db";
+import { requireAuth } from "../_lib/auth.js";
+import { listEntriesForUser, upsertEntry } from "../_lib/db.js";
 import {
   uuid,
   nowIso,
@@ -16,9 +16,9 @@ import {
   ok,
   badRequest,
   methodNotAllowed,
-} from "../_lib/helpers";
-import { notifyAdmin } from "../_lib/notify";
-import type { TimeEntry } from "../_lib/types";
+} from "../_lib/helpers.js";
+import { notifyAdmin } from "../_lib/notify.js";
+import type { TimeEntry } from "../_lib/types.js";
 
 interface Body {
   action?: "in" | "out";

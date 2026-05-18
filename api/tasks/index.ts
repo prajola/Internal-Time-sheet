@@ -3,8 +3,8 @@
  * POST /api/tasks         — create + assign (admin only).
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAuth, requireAdmin } from "../_lib/auth";
-import { listTasks, upsertTask, findUserById } from "../_lib/db";
+import { requireAuth, requireAdmin } from "../_lib/auth.js";
+import { listTasks, upsertTask, findUserById } from "../_lib/db.js";
 import {
   uuid,
   nowIso,
@@ -12,9 +12,9 @@ import {
   ok,
   badRequest,
   methodNotAllowed,
-} from "../_lib/helpers";
-import { notifyAdmin } from "../_lib/notify";
-import type { Task, TaskPriority, TaskStatus } from "../_lib/types";
+} from "../_lib/helpers.js";
+import { notifyAdmin } from "../_lib/notify.js";
+import type { Task, TaskPriority, TaskStatus } from "../_lib/types.js";
 
 interface CreateBody {
   title?: string;

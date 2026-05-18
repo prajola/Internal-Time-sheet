@@ -4,8 +4,8 @@
  * DELETE /api/tasks/:id  — admin only
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAuth, requireAdmin } from "../_lib/auth";
-import { findTask, upsertTask, removeTask, findUserById } from "../_lib/db";
+import { requireAuth, requireAdmin } from "../_lib/auth.js";
+import { findTask, upsertTask, removeTask, findUserById } from "../_lib/db.js";
 import {
   nowIso,
   readBody,
@@ -13,9 +13,9 @@ import {
   badRequest,
   notFound,
   methodNotAllowed,
-} from "../_lib/helpers";
-import { notifyAdmin } from "../_lib/notify";
-import type { Task, TaskPriority, TaskStatus } from "../_lib/types";
+} from "../_lib/helpers.js";
+import { notifyAdmin } from "../_lib/notify.js";
+import type { Task, TaskPriority, TaskStatus } from "../_lib/types.js";
 
 interface PatchBody {
   title?: string;

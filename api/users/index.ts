@@ -8,13 +8,13 @@
  * and creates the User.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAdmin, requireAuth } from "../_lib/auth";
+import { requireAdmin, requireAuth } from "../_lib/auth.js";
 import {
   listUsers,
   upsertInvitation,
   findInvitationByEmail,
   findUserByEmail,
-} from "../_lib/db";
+} from "../_lib/db.js";
 import {
   uuid,
   nowIso,
@@ -24,11 +24,11 @@ import {
   ok,
   badRequest,
   methodNotAllowed,
-} from "../_lib/helpers";
-import { sendMail, magicLinkEmail } from "../_lib/email";
-import { issueMagicToken } from "../_lib/auth";
-import { notifyAdmin } from "../_lib/notify";
-import type { Role } from "../_lib/types";
+} from "../_lib/helpers.js";
+import { sendMail, magicLinkEmail } from "../_lib/email.js";
+import { issueMagicToken } from "../_lib/auth.js";
+import { notifyAdmin } from "../_lib/notify.js";
+import type { Role } from "../_lib/types.js";
 
 interface CreateBody {
   email?: string;

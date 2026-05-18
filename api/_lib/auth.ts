@@ -12,8 +12,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import jwt, { type Secret, type SignOptions } from "jsonwebtoken";
 import { randomBytes } from "node:crypto";
-import type { SessionClaims, MagicLinkClaims, User } from "./types";
-import { findUserById } from "./db";
+import type { SessionClaims, MagicLinkClaims, User } from "./types.js";
+import { findUserById } from "./db.js";
 
 const SESSION_COOKIE = "its_session";
 const SESSION_TTL = "30d";

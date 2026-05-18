@@ -7,9 +7,9 @@
  * skip the immediate /me round-trip.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { verifyMagicToken, issueSessionToken, setSessionCookie } from "../_lib/auth";
-import { findUserByEmail } from "../_lib/db";
-import { readBody, ok, badRequest, methodNotAllowed } from "../_lib/helpers";
+import { verifyMagicToken, issueSessionToken, setSessionCookie } from "../_lib/auth.js";
+import { findUserByEmail } from "../_lib/db.js";
+import { readBody, ok, badRequest, methodNotAllowed } from "../_lib/helpers.js";
 
 interface Body { token?: string }
 

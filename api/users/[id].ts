@@ -4,11 +4,11 @@
  * DELETE /api/users/:id    — soft-delete (admin only, can't delete self)
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAuth, requireAdmin } from "../_lib/auth";
-import { findUserById, upsertUser, listUsers } from "../_lib/db";
-import { readBody, ok, badRequest, notFound, methodNotAllowed } from "../_lib/helpers";
-import { notifyAdmin } from "../_lib/notify";
-import type { Role } from "../_lib/types";
+import { requireAuth, requireAdmin } from "../_lib/auth.js";
+import { findUserById, upsertUser, listUsers } from "../_lib/db.js";
+import { readBody, ok, badRequest, notFound, methodNotAllowed } from "../_lib/helpers.js";
+import { notifyAdmin } from "../_lib/notify.js";
+import type { Role } from "../_lib/types.js";
 
 interface PatchBody {
   name?: string;
