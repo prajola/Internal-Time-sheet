@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Search, KeyRound, LogOut, UserCog, UserX, UserCheck, Trash2,
   Shield, Calendar, ListChecks, Clock, AlertTriangle, Mail, Play,
+  Activity, FileText, History, ShieldCheck, CalendarDays, Hourglass,
+  ArrowUpRight, ArrowDownRight, CheckCircle2, CircleDot,
 } from "lucide-react";
 import { Link } from "wouter";
 import { api } from "../lib/api";
@@ -21,6 +23,8 @@ export default function AdminManage() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"overview" | "timesheet" | "tasks" | "account">("overview");
+  const [tsRange, setTsRange] = useState<"all" | "week" | "month" | "year">("all");
 
   async function loadAll() {
     try {
@@ -66,7 +70,13 @@ export default function AdminManage() {
       setEntries(r.entries);
     } catch (e: any) { err(e?.message || "Failed to load entries"); }
   }
-  useEffect(() => { if (selectedId) loadEntriesFor(selectedId); }, [selectedId]);
+  useEffect(() => {
+    if (selectedId) {
+      loadEntriesFor(selectedId);
+      setTab("overview");
+      setTsRange("all");
+    }
+  }, [selectedId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -178,6 +188,54 @@ export default function AdminManage() {
     () => entries.reduce((s, e) => s + (e.durationMinutes || 0), 0),
     [entries]
   );
+
+  // Tasks this user created (admin tasks they own).
+  const tasksCreated = useMemo(
+    () => tasks.filter((t) => t.createdBy === selectedId),
+    [tasks, selectedId]
+  );
+
+  // Time-period buckets for stat cards.
+  const minutesThisWeek = useMemo(() => sumMinutesSince(entries, startOfWeek(new Date())), [entries]);
+  const minutesThisMonth = useMemo(() => sumMinutesSince(entries, startOfMonth(new Date())), [entries]);
+  const minutesThisYear = useMemo(() => sumMinutesSince(entries, startOfYear(new Date())), [entries]);
+  const uniqueWorkDays = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of entries) set.add(e.startedAt.slice(0, 10));
+    return set.size;
+  }, [entries]);
+
+  // Entries filtered by the chosen Time Sheet range.
+  const filteredEntries = useMemo(() => {
+    if (tsRange === "all") return entries;
+    const now = new Date();
+    const cutoff =
+      tsRange === "week"  ? startOfWeek(now)  :
+      tsRange === "month" ? startOfMonth(now) :
+                            startOfYear(now);
+    return entries.filter((e) => new Date(e.startedAt) >= cutoff);
+  }, [entries, tsRange]);
+
+  // Per-day grouping for the Time Sheet tab.
+  const entriesByDay = useMemo(() => {
+    const grouped = new Map<string, TimeEntry[]>();
+    for (const e of filteredEntries) {
+      const d = e.startedAt.slice(0, 10);
+      const arr = grouped.get(d) || [];
+      arr.push(e);
+      grouped.set(d, arr);
+    }
+    return Array.from(grouped.entries())
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([day, items]) => ({
+        day,
+        items: items.sort((a, b) => (a.startedAt > b.startedAt ? -1 : 1)),
+        total: items.reduce((s, e) => s + (e.durationMinutes || 0), 0),
+      }));
+  }, [filteredEntries]);
+
+  // Combined activity timeline for the Overview tab.
+  const activity = useMemo(() => buildActivity(selectedId, entries, selectedTasks, tasksCreated, users), [selectedId, entries, selectedTasks, tasksCreated, users]);
 
   const isSelf = selected?.id === me?.id;
   const isLastAdmin =
@@ -369,82 +427,206 @@ export default function AdminManage() {
                 </div>
               )}
 
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-3">
-                <Stat label="Open tasks" value={selectedTasks.filter((t) => t.status !== "DONE").length} />
-                <Stat label="Tracked time (all)" value={fmtMinutes(totalMinutesThisUser)} />
-                <Stat label="Total entries" value={entries.length} />
+              {/* Tab bar */}
+              <div className="ko-card p-1 inline-flex gap-0.5 self-start">
+                <TabBtn active={tab === "overview"}  onClick={() => setTab("overview")}  icon={<Activity size={13} />} label="Overview" />
+                <TabBtn active={tab === "timesheet"} onClick={() => setTab("timesheet")} icon={<Clock size={13} />}    label="Time Sheet" />
+                <TabBtn active={tab === "tasks"}     onClick={() => setTab("tasks")}     icon={<ListChecks size={13} />} label={`Tasks (${selectedTasks.length + tasksCreated.length})`} />
+                <TabBtn active={tab === "account"}   onClick={() => setTab("account")}   icon={<ShieldCheck size={13} />} label="Account" />
               </div>
 
-              {/* Tasks section */}
-              <div className="ko-card overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ListChecks size={14} className="text-gray-500" />
-                    <h3 className="text-sm font-semibold text-gray-900">Tasks assigned ({selectedTasks.length})</h3>
+              {tab === "overview" && (
+                <>
+                  {/* Summary stat cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Stat label="This week"      value={fmtMinutes(minutesThisWeek)} />
+                    <Stat label="This month"     value={fmtMinutes(minutesThisMonth)} />
+                    <Stat label="All time"       value={fmtMinutes(totalMinutesThisUser)} />
+                    <Stat label="Days worked"    value={uniqueWorkDays} />
                   </div>
-                  <Link href="/tasks" className="text-[12px] text-brand-700 hover:underline">Manage tasks →</Link>
-                </div>
-                {selectedTasks.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-gray-500 text-center">No tasks assigned to this user.</div>
-                ) : (
-                  <table className="ko-table">
-                    <thead>
-                      <tr>
-                        <th>Title</th>
-                        <th>Status</th>
-                        <th>Priority</th>
-                        <th>Due</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedTasks.map((t) => (
-                        <tr key={t.id}>
-                          <td className="font-medium">{t.title}</td>
-                          <td>{t.status.replace("_", " ")}</td>
-                          <td>{t.priority}</td>
-                          <td className="text-gray-500">{t.dueDate ? fmtDate(t.dueDate) : "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
 
-              {/* Timesheet preview */}
-              <div className="ko-card overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Clock size={14} className="text-gray-500" />
-                    <h3 className="text-sm font-semibold text-gray-900">Recent timesheet ({entries.length})</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Stat label="Open tasks"        value={selectedTasks.filter((t) => t.status !== "DONE").length} />
+                    <Stat label="Done tasks"        value={selectedTasks.filter((t) => t.status === "DONE").length} />
+                    <Stat label="Created by user"   value={tasksCreated.length} />
+                    <Stat label="Time entries"      value={entries.length} />
                   </div>
-                  <Link href="/timesheets" className="text-[12px] text-brand-700 hover:underline">Full timesheet →</Link>
-                </div>
-                {entries.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-gray-500 text-center">No time entries logged yet.</div>
-                ) : (
-                  <table className="ko-table">
-                    <thead>
-                      <tr>
-                        <th>Started</th>
-                        <th>Ended</th>
-                        <th>Duration</th>
-                        <th>Description</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.slice(0, 8).map((e) => (
-                        <tr key={e.id}>
-                          <td>{fmtDateTime(e.startedAt)}</td>
-                          <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-700">in progress</span>}</td>
-                          <td className="font-mono">{e.endedAt ? fmtMinutes(e.durationMinutes) : "—"}</td>
-                          <td className="text-gray-600">{e.description || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+
+                  {/* Activity timeline */}
+                  <div className="ko-card overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <History size={14} className="text-gray-500" />
+                        <h3 className="text-sm font-semibold text-gray-900">Activity timeline</h3>
+                      </div>
+                      <span className="text-[11px] text-gray-500">{activity.length} event{activity.length === 1 ? "" : "s"}</span>
+                    </div>
+                    {activity.length === 0 ? (
+                      <div className="px-4 py-8 text-sm text-gray-500 text-center">
+                        No activity yet for this user.
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-gray-100">
+                        {activity.slice(0, 20).map((a) => (
+                          <li key={a.id} className="px-4 py-3 flex items-start gap-3">
+                            <div className={"flex-shrink-0 w-7 h-7 rounded-full inline-flex items-center justify-center " + activityIconBg(a.kind)}>
+                              {activityIcon(a.kind)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm text-gray-900">{a.title}</div>
+                              {a.body && <div className="text-[12px] text-gray-500 mt-0.5">{a.body}</div>}
+                              <div className="text-[10px] uppercase tracking-[0.14em] text-gray-400 mt-1">
+                                {fmtDateTime(a.at)} · {timeAgo(a.at, tickNow)}
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {tab === "timesheet" && (
+                <>
+                  <div className="ko-card p-3 flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-gray-500 mr-2">Range</span>
+                    {(["all", "week", "month", "year"] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setTsRange(r)}
+                        className={
+                          "h-8 px-3 rounded-md text-[12px] font-medium transition border " +
+                          (tsRange === r
+                            ? "bg-brand-50 border-brand-300 text-brand-800"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50")
+                        }
+                      >
+                        {r === "all" ? "All time" : r === "week" ? "This week" : r === "month" ? "This month" : "This year"}
+                      </button>
+                    ))}
+                    <div className="ml-auto text-right">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Total</div>
+                      <div className="font-display text-lg text-gray-900 leading-tight">
+                        {fmtMinutes(filteredEntries.reduce((s, e) => s + (e.durationMinutes || 0), 0))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {entriesByDay.length === 0 ? (
+                    <div className="ko-card p-8 text-sm text-gray-500 text-center">No entries in this range.</div>
+                  ) : (
+                    entriesByDay.map((group) => (
+                      <div key={group.day} className="ko-card overflow-hidden">
+                        <div className="px-4 py-2.5 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                          <div className="flex items-center gap-2">
+                            <CalendarDays size={13} className="text-gray-500" />
+                            <span className="text-sm font-semibold text-gray-900">{fmtDate(group.day + "T00:00:00")}</span>
+                            <span className="text-[11px] text-gray-500">· {group.items.length} entr{group.items.length === 1 ? "y" : "ies"}</span>
+                          </div>
+                          <span className="font-mono text-sm font-semibold text-brand-700">{fmtMinutes(group.total)}</span>
+                        </div>
+                        <table className="ko-table">
+                          <thead>
+                            <tr>
+                              <th>Clock in</th>
+                              <th>Clock out</th>
+                              <th>Duration</th>
+                              <th>Description</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.items.map((e) => (
+                              <tr key={e.id}>
+                                <td className="font-mono">{new Date(e.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</td>
+                                <td className="font-mono">{e.endedAt
+                                  ? new Date(e.endedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+                                  : <span className="text-brand-700">in progress</span>}
+                                </td>
+                                <td className="font-mono">{e.endedAt ? fmtMinutes(e.durationMinutes) : "—"}</td>
+                                <td className="text-gray-600">{e.description || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))
+                  )}
+                </>
+              )}
+
+              {tab === "tasks" && (
+                <>
+                  {/* Status breakdown */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Stat label="To do"        value={selectedTasks.filter((t) => t.status === "TODO").length} />
+                    <Stat label="In progress"  value={selectedTasks.filter((t) => t.status === "IN_PROGRESS").length} />
+                    <Stat label="Blocked"      value={selectedTasks.filter((t) => t.status === "BLOCKED").length} />
+                    <Stat label="Done"         value={selectedTasks.filter((t) => t.status === "DONE").length} />
+                  </div>
+
+                  <TasksTable
+                    title={`Assigned to ${selected.name || selected.email} (${selectedTasks.length})`}
+                    tasks={selectedTasks}
+                  />
+
+                  <TasksTable
+                    title={`Created by ${selected.name || selected.email} (${tasksCreated.length})`}
+                    tasks={tasksCreated}
+                    users={users}
+                    showAssignee
+                  />
+                </>
+              )}
+
+              {tab === "account" && (
+                <>
+                  <div className="ko-card overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
+                      <ShieldCheck size={14} className="text-gray-500" />
+                      <h3 className="text-sm font-semibold text-gray-900">Account details</h3>
+                    </div>
+                    <dl className="divide-y divide-gray-100">
+                      <AccountRow label="User ID" value={<span className="font-mono text-[12px] text-gray-600 break-all">{selected.id}</span>} />
+                      <AccountRow label="Email" value={selected.email} />
+                      <AccountRow label="Display name" value={selected.name || <span className="text-gray-400">—</span>} />
+                      <AccountRow label="Role" value={<span className={selected.role === "ADMIN" ? "ko-pill-admin" : "ko-pill-employee"}>{selected.role}</span>} />
+                      <AccountRow label="Status" value={selected.active
+                        ? <span className="text-emerald-700">Active</span>
+                        : <span className="text-gray-500">Login disabled</span>} />
+                      <AccountRow label="Account created" value={fmtDateTime(selected.createdAt)} />
+                      <AccountRow label="Password set" value={selected.passwordSetAt ? fmtDateTime(selected.passwordSetAt) : <span className="text-gray-400">Not set</span>} />
+                      <AccountRow label="Sessions revoked" value={selected.sessionsRevokedAt ? fmtDateTime(selected.sessionsRevokedAt) : <span className="text-gray-400">Never</span>} />
+                      <AccountRow label="Invited by" value={
+                        selected.invitedBy
+                          ? (users.find((u) => u.id === selected.invitedBy)?.email || <span className="text-gray-400">unknown</span>)
+                          : <span className="text-gray-400">Self-signup</span>
+                      } />
+                    </dl>
+                  </div>
+
+                  {/* Account audit log — derived from known timestamps */}
+                  <div className="ko-card overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
+                      <History size={14} className="text-gray-500" />
+                      <h3 className="text-sm font-semibold text-gray-900">Account audit log</h3>
+                    </div>
+                    <ul className="divide-y divide-gray-100">
+                      <AuditRow icon={<ShieldCheck size={12} />} when={selected.createdAt} text="Account created" />
+                      {selected.passwordSetAt && (
+                        <AuditRow icon={<KeyRound size={12} />} when={selected.passwordSetAt} text="Password set" />
+                      )}
+                      {selected.sessionsRevokedAt && (
+                        <AuditRow icon={<LogOut size={12} />} when={selected.sessionsRevokedAt} text="All sessions revoked by admin" />
+                      )}
+                      {!selected.active && (
+                        <AuditRow icon={<UserX size={12} />} when={selected.createdAt /* best-effort, not tracked */} text="Account currently disabled" />
+                      )}
+                    </ul>
+                  </div>
+                </>
+              )}
             </>
           )}
         </section>
@@ -491,4 +673,247 @@ function elapsed(startedAtIso: string, nowMs: number): string {
   const s = total % 60;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+/* ── Tab bar ───────────────────────────────────────────────── */
+
+function TabBtn(props: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      className={
+        "inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-medium transition " +
+        (props.active
+          ? "bg-brand-50 text-brand-800 border border-brand-200"
+          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50 border border-transparent")
+      }
+    >
+      {props.icon} {props.label}
+    </button>
+  );
+}
+
+/* ── Tasks table (used in Tasks tab) ───────────────────────── */
+
+function TasksTable(props: {
+  title: string;
+  tasks: Task[];
+  users?: User[];
+  showAssignee?: boolean;
+}) {
+  return (
+    <div className="ko-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ListChecks size={14} className="text-gray-500" />
+          <h3 className="text-sm font-semibold text-gray-900">{props.title}</h3>
+        </div>
+        <Link href="/tasks" className="text-[12px] text-brand-700 hover:underline">Manage tasks →</Link>
+      </div>
+      {props.tasks.length === 0 ? (
+        <div className="px-4 py-6 text-sm text-gray-500 text-center">Nothing here.</div>
+      ) : (
+        <table className="ko-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              {props.showAssignee && <th>Assignee</th>}
+              <th>Status</th>
+              <th>Priority</th>
+              <th>Due</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {props.tasks.map((t) => (
+              <tr key={t.id}>
+                <td className="font-medium">{t.title}</td>
+                {props.showAssignee && (
+                  <td>{
+                    props.users?.find((u) => u.id === t.assigneeId)?.name ||
+                    props.users?.find((u) => u.id === t.assigneeId)?.email ||
+                    <span className="text-gray-400">—</span>
+                  }</td>
+                )}
+                <td>{t.status.replace("_", " ")}</td>
+                <td>{t.priority}</td>
+                <td className="text-gray-500">{t.dueDate ? fmtDate(t.dueDate) : "—"}</td>
+                <td className="text-gray-500">{fmtDate(t.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/* ── Account tab atoms ─────────────────────────────────────── */
+
+function AccountRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="px-4 py-2.5 flex items-center gap-4">
+      <dt className="text-[11px] uppercase tracking-[0.14em] text-gray-500 w-40 flex-shrink-0">{label}</dt>
+      <dd className="text-sm text-gray-900 min-w-0">{value}</dd>
+    </div>
+  );
+}
+
+function AuditRow({ icon, when, text }: { icon: React.ReactNode; when: string; text: string }) {
+  return (
+    <li className="px-4 py-3 flex items-start gap-3">
+      <div className="w-7 h-7 rounded-full bg-gray-100 inline-flex items-center justify-center text-gray-600 flex-shrink-0">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm text-gray-900">{text}</div>
+        <div className="text-[11px] text-gray-500 mt-0.5">{fmtDateTime(when)}</div>
+      </div>
+    </li>
+  );
+}
+
+/* ── Activity timeline construction ────────────────────────── */
+
+type ActivityKind =
+  | "clock-in"
+  | "clock-out"
+  | "task-assigned"
+  | "task-created";
+
+interface ActivityEvent {
+  id: string;
+  at: string;
+  kind: ActivityKind;
+  title: string;
+  body?: string;
+}
+
+function buildActivity(
+  userId: string | null,
+  entries: TimeEntry[],
+  tasksAssigned: Task[],
+  tasksCreated: Task[],
+  users: User[],
+): ActivityEvent[] {
+  if (!userId) return [];
+  const out: ActivityEvent[] = [];
+
+  for (const e of entries) {
+    out.push({
+      id: `${e.id}:in`,
+      at: e.startedAt,
+      kind: "clock-in",
+      title: e.endedAt ? "Clocked in" : "Clocked in (in progress)",
+      body: e.description || undefined,
+    });
+    if (e.endedAt) {
+      out.push({
+        id: `${e.id}:out`,
+        at: e.endedAt,
+        kind: "clock-out",
+        title: `Clocked out · ${minutesShort(e.durationMinutes)}`,
+        body: e.description || undefined,
+      });
+    }
+  }
+
+  for (const t of tasksAssigned) {
+    const assigner = users.find((u) => u.id === t.createdBy);
+    out.push({
+      id: `${t.id}:assigned`,
+      at: t.createdAt,
+      kind: "task-assigned",
+      title: `Assigned task: ${t.title}`,
+      body: assigner ? `By ${assigner.name || assigner.email}` : undefined,
+    });
+  }
+
+  for (const t of tasksCreated) {
+    out.push({
+      id: `${t.id}:created`,
+      at: t.createdAt,
+      kind: "task-created",
+      title: `Created task: ${t.title}`,
+      body: t.assigneeId
+        ? `Assigned to ${users.find((u) => u.id === t.assigneeId)?.email || "someone"}`
+        : "Unassigned",
+    });
+  }
+
+  return out.sort((a, b) => (a.at > b.at ? -1 : 1));
+}
+
+function activityIconBg(kind: ActivityKind): string {
+  if (kind === "clock-in")    return "bg-emerald-100 text-emerald-700";
+  if (kind === "clock-out")   return "bg-blue-100 text-blue-700";
+  if (kind === "task-assigned") return "bg-brand-50 text-brand-700";
+  return "bg-gray-100 text-gray-600";
+}
+
+function activityIcon(kind: ActivityKind): React.ReactNode {
+  if (kind === "clock-in")    return <ArrowUpRight size={13} />;
+  if (kind === "clock-out")   return <ArrowDownRight size={13} />;
+  if (kind === "task-assigned") return <CircleDot size={13} />;
+  return <CheckCircle2 size={13} />;
+}
+
+/* ── Date math ─────────────────────────────────────────────── */
+
+function startOfWeek(d: Date): Date {
+  // Monday-start; consistent with how most teams plan a work week.
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const day = x.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+
+function startOfMonth(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(1);
+  return x;
+}
+
+function startOfYear(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setMonth(0, 1);
+  return x;
+}
+
+function sumMinutesSince(entries: TimeEntry[], cutoff: Date): number {
+  let total = 0;
+  for (const e of entries) {
+    if (new Date(e.startedAt) >= cutoff) total += e.durationMinutes || 0;
+  }
+  return total;
+}
+
+/* ── Tiny helpers ──────────────────────────────────────────── */
+
+function minutesShort(m: number): string {
+  if (!m || m < 0) return "0m";
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  if (h <= 0) return `${mm}m`;
+  if (mm <= 0) return `${h}h`;
+  return `${h}h ${mm}m`;
+}
+
+function timeAgo(iso: string, nowMs: number): string {
+  const ms = nowMs - new Date(iso).getTime();
+  if (Number.isNaN(ms) || ms < 0) return "just now";
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return "just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
 }
