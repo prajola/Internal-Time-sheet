@@ -15,7 +15,7 @@
  * relay's `submissions/` pattern).
  */
 import { list, put } from "@vercel/blob";
-import type { User, Task, Invitation, TimeEntry } from "./types.js";
+import type { User, Task, Invitation, TimeEntry, Notification } from "./types.js";
 
 const COLL = {
   users: "db/users.json",
@@ -24,6 +24,11 @@ const COLL = {
 } as const;
 
 const TE_PREFIX = "db/time-entries/";
+const NOTIF_PREFIX = "db/notifications/";
+
+// Cap each user's inbox so it doesn't grow unbounded over time. Older
+// records past this count are truncated on every write.
+const NOTIF_PER_USER_CAP = 200;
 
 async function readBlob<T>(pathname: string): Promise<T | null> {
   try {
@@ -168,6 +173,42 @@ export async function upsertEntry(entry: TimeEntry): Promise<TimeEntry[]> {
 export async function removeEntry(userId: string, entryId: string): Promise<void> {
   const list = await listEntriesForUser(userId);
   await saveEntriesForUser(userId, list.filter((e) => e.id !== entryId));
+}
+
+/* ── Notifications (sharded per recipient) ──────────────────── */
+
+export async function listNotificationsForUser(userId: string): Promise<Notification[]> {
+  const data = await readBlob<{ items: Notification[] }>(`${NOTIF_PREFIX}${userId}.json`);
+  return data?.items ?? [];
+}
+
+export async function saveNotificationsForUser(userId: string, items: Notification[]): Promise<void> {
+  // Keep the inbox bounded — drop the oldest beyond the cap.
+  const trimmed = items.length > NOTIF_PER_USER_CAP
+    ? items.slice(0, NOTIF_PER_USER_CAP)
+    : items;
+  await writeBlob(`${NOTIF_PREFIX}${userId}.json`, { items: trimmed });
+}
+
+/** Insert a fresh notification at the head of the recipient's inbox. */
+export async function pushNotification(n: Notification): Promise<void> {
+  const list = await listNotificationsForUser(n.userId);
+  list.unshift(n);
+  await saveNotificationsForUser(n.userId, list);
+}
+
+export async function updateNotification(userId: string, id: string, patch: Partial<Notification>): Promise<Notification | null> {
+  const list = await listNotificationsForUser(userId);
+  const idx = list.findIndex((n) => n.id === id);
+  if (idx === -1) return null;
+  list[idx] = { ...list[idx], ...patch };
+  await saveNotificationsForUser(userId, list);
+  return list[idx];
+}
+
+export async function removeNotification(userId: string, id: string): Promise<void> {
+  const list = await listNotificationsForUser(userId);
+  await saveNotificationsForUser(userId, list.filter((n) => n.id !== id));
 }
 
 /** Admin: list entries across all users. Use with care — O(users) reads. */

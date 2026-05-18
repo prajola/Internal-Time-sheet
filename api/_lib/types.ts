@@ -58,6 +58,40 @@ export interface Invitation {
   acceptedAt?: string;
 }
 
+/**
+ * In-app notification (the bell-icon list).
+ *
+ * Stored per-recipient so reads are cheap. Each one represents a single
+ * event the user might want to see — task assigned to them, status
+ * change on a task they created, account change applied by an admin,
+ * etc. We keep the body small and link the user to wherever they should
+ * land next via `link`.
+ */
+export type NotificationKind =
+  | "task-assigned"
+  | "task-updated"
+  | "task-status-changed"
+  | "task-deleted"
+  | "account-role-changed"
+  | "account-disabled"
+  | "account-enabled"
+  | "account-password-reset"
+  | "account-force-signout";
+
+export interface Notification {
+  id: string;
+  userId: string;          // recipient — the inbox owner
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  link?: string | null;    // optional href to navigate to on click
+  taskId?: string | null;
+  fromUserId?: string | null;
+  fromUserName?: string | null;
+  readAt?: string | null;  // ISO; null = unread
+  createdAt: string;       // ISO
+}
+
 /** Session payload signed into the cookie JWT. */
 export interface SessionClaims {
   sub: string;                  // userId

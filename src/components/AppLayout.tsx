@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { LogOut, LayoutDashboard, ClipboardList, Clock, Users, ListChecks, CalendarRange, Settings2 } from "lucide-react";
 import { useAuth } from "../lib/auth-context";
+import { NotificationBell } from "./NotificationBell";
 
 interface NavItem {
   href: string;
@@ -41,6 +42,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
           </Link>
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <span className={user.role === "ADMIN" ? "ko-pill-admin" : "ko-pill-employee"}>{user.role}</span>
             <div className="hidden sm:flex flex-col items-end leading-tight">
               <span className="text-sm text-gray-900">{user.name || user.email}</span>

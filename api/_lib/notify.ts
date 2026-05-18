@@ -3,8 +3,10 @@
  * primary mutation. Pulls ADMIN_NOTIFY_EMAIL from env, defaults to
  * kubegraf@gmail.com so the user gets emails out-of-the-box.
  */
-import type { Task, User } from "./types.js";
+import type { Notification, NotificationKind, Task, User } from "./types.js";
 import { adminNotifyEmail, sendMail, taskAssignmentEmail } from "./email.js";
+import { pushNotification } from "./db.js";
+import { uuid, nowIso } from "./helpers.js";
 
 const DEFAULT_NOTIFY = "kubegraf@gmail.com";
 
@@ -79,5 +81,54 @@ export async function notifyAssignee(opts: {
     });
   } catch (err) {
     console.warn("[notify] notifyAssignee failed (non-fatal):", err);
+  }
+}
+
+/**
+ * Generic in-app notifier: writes a Notification record AND optionally
+ * sends an email. Use this for every user-visible event we want to
+ * surface in the bell. Falls back silently on errors — never lets a
+ * write failure block the underlying mutation.
+ */
+export async function notifyUser(opts: {
+  to: User;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  link?: string;
+  taskId?: string;
+  from?: { id: string; name: string; email: string };
+  email?: { subject: string; text: string; html: string };
+}): Promise<void> {
+  const n: Notification = {
+    id: uuid(),
+    userId: opts.to.id,
+    kind: opts.kind,
+    title: opts.title,
+    body: opts.body,
+    link: opts.link || null,
+    taskId: opts.taskId || null,
+    fromUserId: opts.from?.id || null,
+    fromUserName: opts.from?.name || null,
+    readAt: null,
+    createdAt: nowIso(),
+  };
+
+  try { await pushNotification(n); } catch (err) {
+    console.warn("[notify] pushNotification failed (non-fatal):", err);
+  }
+
+  if (opts.email && opts.to.active && opts.to.email) {
+    try {
+      await sendMail({
+        to: opts.to.email,
+        subject: opts.email.subject,
+        text: opts.email.text,
+        html: opts.email.html,
+        replyTo: opts.from?.email,
+      });
+    } catch (err) {
+      console.warn("[notify] notifyUser email failed (non-fatal):", err);
+    }
   }
 }

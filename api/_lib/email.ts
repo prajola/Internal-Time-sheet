@@ -234,6 +234,125 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/* ── Task status-changed email (to admin / creator) ───────────── */
+
+export function taskStatusEmail(opts: {
+  to: string;
+  recipientName: string;
+  actorName: string;
+  taskTitle: string;
+  oldStatus: string;
+  newStatus: string;
+  appUrl: string;
+}): { subject: string; text: string; html: string } {
+  const greeting = opts.recipientName ? `Hi ${opts.recipientName.split(" ")[0]},` : "Hi,";
+  const isDone = opts.newStatus === "DONE";
+  const subject = isDone
+    ? `Done: ${opts.taskTitle}`
+    : `Status update: ${opts.taskTitle}`;
+  const text = [
+    greeting,
+    "",
+    `${opts.actorName} changed the status of "${opts.taskTitle}".`,
+    "",
+    `Was:  ${opts.oldStatus}`,
+    `Now:  ${opts.newStatus}`,
+    "",
+    `Open it: ${opts.appUrl}/tasks`,
+    "",
+    "— KubeGraf Internal Time Sheet",
+  ].join("\n");
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;line-height:1.5;max-width:560px;margin:0 auto;padding:24px;">
+      <div style="border:1px solid #e5e7eb;border-radius:12px;padding:32px;background:#fff;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
+          <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#ffd486,#ffa340);display:inline-flex;align-items:center;justify-content:center;color:#000;font-weight:700;">K</div>
+          <div>
+            <div style="font-weight:600;font-size:15px;color:#111;">KubeGraf</div>
+            <div style="font-size:11px;color:#6b7280;letter-spacing:0.12em;text-transform:uppercase;">Internal Time Sheet</div>
+          </div>
+        </div>
+        <h2 style="margin:0 0 10px 0;font-size:20px;font-weight:600;color:#111;">${isDone ? "Task marked done" : "Task status updated"}</h2>
+        <p style="margin:0 0 8px 0;color:#374151;">${greeting}</p>
+        <p style="margin:0 0 18px 0;color:#374151;">
+          <strong>${escapeHtml(opts.actorName)}</strong> changed the status of
+          <strong>${escapeHtml(opts.taskTitle)}</strong>.
+        </p>
+        <table style="border-collapse:collapse;font-size:13px;color:#6b7280;margin:0 0 22px 0;">
+          <tr><td style="padding:3px 12px 3px 0;">Was</td><td style="color:#111;">${escapeHtml(opts.oldStatus)}</td></tr>
+          <tr><td style="padding:3px 12px 3px 0;">Now</td><td style="color:#111;">${escapeHtml(opts.newStatus)}</td></tr>
+        </table>
+        <p style="margin:0 0 24px 0;">
+          <a href="${opts.appUrl}/tasks"
+             style="display:inline-block;padding:11px 22px;background:#ffa340;color:#111;font-weight:600;
+                    text-decoration:none;border-radius:8px;font-size:14px;">Open tasks</a>
+        </p>
+        <hr style="border:none;border-top:1px solid #f3f4f6;margin:20px 0;" />
+        <p style="margin:0;color:#9ca3af;font-size:11px;">
+          KubeGraf · Internal use only
+        </p>
+      </div>
+    </div>
+  `;
+  return { subject, text, html };
+}
+
+/* ── Account-management notification (to the affected user) ───── */
+
+export function accountUpdateEmail(opts: {
+  to: string;
+  recipientName: string;
+  actorName: string;
+  headline: string;       // "Your role has been updated", "Your password was reset", etc.
+  detail: string;         // human description of what changed
+  appUrl: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+}): { subject: string; text: string; html: string } {
+  const greeting = opts.recipientName ? `Hi ${opts.recipientName.split(" ")[0]},` : "Hi,";
+  const subject = opts.headline;
+  const text = [
+    greeting,
+    "",
+    opts.detail,
+    "",
+    opts.ctaHref ? `Open it: ${opts.ctaHref}` : `Open the app: ${opts.appUrl}`,
+    "",
+    `If this wasn't expected, contact ${opts.actorName}.`,
+    "",
+    "— KubeGraf Internal Time Sheet",
+  ].join("\n");
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;line-height:1.5;max-width:520px;margin:0 auto;padding:24px;">
+      <div style="border:1px solid #e5e7eb;border-radius:12px;padding:32px;background:#fff;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
+          <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#ffd486,#ffa340);display:inline-flex;align-items:center;justify-content:center;color:#000;font-weight:700;">K</div>
+          <div>
+            <div style="font-weight:600;font-size:15px;color:#111;">KubeGraf</div>
+            <div style="font-size:11px;color:#6b7280;letter-spacing:0.12em;text-transform:uppercase;">Internal Time Sheet</div>
+          </div>
+        </div>
+        <h2 style="margin:0 0 10px 0;font-size:20px;font-weight:600;color:#111;">${escapeHtml(opts.headline)}</h2>
+        <p style="margin:0 0 8px 0;color:#374151;">${greeting}</p>
+        <p style="margin:0 0 22px 0;color:#374151;">${escapeHtml(opts.detail)}</p>
+        <p style="margin:0 0 24px 0;">
+          <a href="${opts.ctaHref || opts.appUrl}"
+             style="display:inline-block;padding:11px 22px;background:#ffa340;color:#111;font-weight:600;
+                    text-decoration:none;border-radius:8px;font-size:14px;">${escapeHtml(opts.ctaLabel || "Open KubeGraf")}</a>
+        </p>
+        <p style="margin:0 0 4px 0;color:#6b7280;font-size:12px;">
+          This change was applied by <strong>${escapeHtml(opts.actorName)}</strong>.
+        </p>
+        <hr style="border:none;border-top:1px solid #f3f4f6;margin:20px 0;" />
+        <p style="margin:0;color:#9ca3af;font-size:11px;">
+          If you didn't expect this, reply to this email or contact your workspace admin.
+        </p>
+      </div>
+    </div>
+  `;
+  return { subject, text, html };
+}
+
 /* ── Generic admin-notification email ─────────────────────────── */
 
 export function adminNotifyEmail(opts: {

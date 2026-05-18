@@ -66,7 +66,7 @@ export default function AdminManage() {
     if (!confirm(`Send a password-reset link to ${selected.email}? Their current password will stop working immediately.`)) return;
     setBusy(true);
     try {
-      await api.post("/api/users/reset-password", { userId: selected.id });
+      await api.patch(`/api/users/${selected.id}`, { resetPassword: true });
       ok(`Reset link sent to ${selected.email}.`);
       await loadAll();
     } catch (e: any) { err(e?.message || "Failed"); }

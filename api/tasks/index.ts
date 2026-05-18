@@ -13,7 +13,7 @@ import {
   badRequest,
   methodNotAllowed,
 } from "../_lib/helpers.js";
-import { notifyAdmin, notifyAssignee } from "../_lib/notify.js";
+import { notifyAdmin, notifyAssignee, notifyUser } from "../_lib/notify.js";
 import type { Task, TaskPriority, TaskStatus, User } from "../_lib/types.js";
 
 interface CreateBody {
@@ -65,10 +65,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     await upsertTask(t);
 
-    // Email the assignee directly. Fire-and-forget so a slow SMTP path
-    // never blocks task creation.
+    // Email the assignee directly (full task email) + record an in-app notification.
     if (assigneeUser) {
       await notifyAssignee({ task: t, assignee: assigneeUser, assignedBy: admin });
+      await notifyUser({
+        to: assigneeUser,
+        kind: "task-assigned",
+        title: `New task: ${t.title}`,
+        body: `${admin.name} assigned a task to you · ${t.priority}${t.dueDate ? ` · due ${t.dueDate}` : ""}`,
+        link: "/my-tasks",
+        taskId: t.id,
+        from: { id: admin.id, name: admin.name, email: admin.email },
+      });
     }
 
     await notifyAdmin({

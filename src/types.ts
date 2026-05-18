@@ -40,6 +40,31 @@ export interface TimeEntry {
   updatedAt: string;
 }
 
+export type NotificationKind =
+  | "task-assigned"
+  | "task-updated"
+  | "task-status-changed"
+  | "task-deleted"
+  | "account-role-changed"
+  | "account-disabled"
+  | "account-enabled"
+  | "account-password-reset"
+  | "account-force-signout";
+
+export interface Notification {
+  id: string;
+  userId: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  link?: string | null;
+  taskId?: string | null;
+  fromUserId?: string | null;
+  fromUserName?: string | null;
+  readAt?: string | null;
+  createdAt: string;
+}
+
 export interface Invitation {
   id: string;
   email: string;

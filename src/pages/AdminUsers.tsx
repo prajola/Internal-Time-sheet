@@ -47,7 +47,7 @@ export default function AdminUsers() {
   async function resetPassword(u: User) {
     if (!confirm(`Send a password-reset link to ${u.email}? Their current password will stop working immediately.`)) return;
     try {
-      await api.post("/api/users/reset-password", { userId: u.id });
+      await api.patch(`/api/users/${u.id}`, { resetPassword: true });
       ok(`Reset link sent to ${u.email}.`);
     } catch (e: any) { err(e?.message || "Failed"); }
   }
