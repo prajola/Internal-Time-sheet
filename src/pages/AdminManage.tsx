@@ -195,33 +195,89 @@ export default function AdminManage() {
 
   function downloadCsv() {
     if (!selected) return;
-    const myTasks = tasks.filter((t) => t.assigneeId === selected.id);
-    const myCreated = tasks.filter((t) => t.createdBy === selected.id);
-    const csv = buildUserCsv(selected, entries, myTasks, myCreated, users);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const safeName = (selected.name || selected.email).replace(/[^A-Za-z0-9_-]+/g, "_");
-    a.href = url;
-    a.download = `kubegraf-${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-    ok("CSV downloaded.");
+    try {
+      const myTasks = tasks.filter((t) => t.assigneeId === selected.id);
+      const myCreated = tasks.filter((t) => t.createdBy === selected.id);
+      const csv = buildUserCsv(selected, entries, myTasks, myCreated, users);
+      // Excel friendliness: prepend a UTF-8 BOM so non-ASCII names + accents
+      // render correctly when opened directly in Excel for Windows.
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeName = (selected.name || selected.email).replace(/[^A-Za-z0-9_-]+/g, "_");
+      a.href = url;
+      a.download = `kubegraf-${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      // Defer cleanup — Safari aborts the download if we revoke immediately.
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1000);
+      ok("CSV downloaded.");
+    } catch (e: any) {
+      err(e?.message || "Could not download CSV");
+    }
   }
 
+  /**
+   * Print/save-PDF via a hidden iframe — doesn't open a new window, so
+   * pop-up blockers don't interfere. The browser's print dialog appears
+   * over the current page; "Save as PDF" works the same as before.
+   */
   function printReport() {
     if (!selected) return;
-    const myTasks = tasks.filter((t) => t.assigneeId === selected.id);
-    const myCreated = tasks.filter((t) => t.createdBy === selected.id);
-    const html = buildUserReportHtml(selected, entries, myTasks, myCreated, users);
-    // Open in a new tab and call print() once it's loaded. The user can
-    // hit "Save as PDF" from the browser's print dialog — no extra deps.
-    const w = window.open("", "_blank", "noopener,noreferrer");
-    if (!w) { err("Pop-ups blocked. Allow pop-ups to print the report."); return; }
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => { try { w.focus(); w.print(); } catch { /* user can print manually */ } }, 350);
+    try {
+      const myTasks = tasks.filter((t) => t.assigneeId === selected.id);
+      const myCreated = tasks.filter((t) => t.createdBy === selected.id);
+      const html = buildUserReportHtml(selected, entries, myTasks, myCreated, users);
+
+      // Drop any existing print iframe (previous click may have left one).
+      const existing = document.getElementById("ko-print-frame") as HTMLIFrameElement | null;
+      if (existing) existing.remove();
+
+      const iframe = document.createElement("iframe");
+      iframe.id = "ko-print-frame";
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      iframe.style.opacity = "0";
+      iframe.setAttribute("aria-hidden", "true");
+      document.body.appendChild(iframe);
+
+      // Write content. Using srcdoc keeps the iframe same-origin which is
+      // what window.contentWindow.print() needs.
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) { err("Browser blocked the print frame"); iframe.remove(); return; }
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      const trigger = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          err("Could not open the print dialog");
+        }
+        // Leave the iframe in place briefly so the browser's print dialog
+        // can finish — then remove on next tick.
+        setTimeout(() => iframe.remove(), 60_000);
+      };
+
+      // Wait for content to actually load before printing — images and
+      // styles otherwise won't be ready.
+      if (iframe.contentDocument?.readyState === "complete") {
+        setTimeout(trigger, 100);
+      } else {
+        iframe.onload = () => setTimeout(trigger, 100);
+        // Safety fallback in case onload doesn't fire (rare with data URIs).
+        setTimeout(trigger, 1200);
+      }
+    } catch (e: any) {
+      err(e?.message || "Could not open the print dialog");
+    }
   }
 
   const totalMinutesThisUser = useMemo(
