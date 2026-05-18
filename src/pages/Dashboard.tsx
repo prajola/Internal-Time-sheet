@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth-context";
 import { api } from "../lib/api";
 import { useToast } from "../components/Toast";
 import { EmptyState } from "../components/EmptyState";
+import { NotificationFeed } from "../components/NotificationFeed";
 import { fmtDateTime, fmtMinutes, fmtTime, todayYmd } from "../lib/format";
 import type { Task, TimeEntry } from "../types";
 
@@ -234,6 +235,10 @@ export default function Dashboard() {
         <StatCard icon={<ListChecks size={14} />} label="Open tasks" value={myTasks.length} link={user?.role === "EMPLOYEE" ? "/my-tasks" : undefined} />
         <StatCard icon={<CalendarCheck size={14} />} label="Entries" value={recent.length} link={user?.role === "EMPLOYEE" ? "/my-timesheet" : undefined} />
       </section>
+
+      {/* ── Notifications inline (same data as the header bell) ─ */}
+      <NotificationFeed />
+
 
       {/* ── My tasks preview ─────────────────────────────────── */}
       {user?.role === "EMPLOYEE" && (
