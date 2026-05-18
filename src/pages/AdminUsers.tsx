@@ -1,0 +1,162 @@
+import { useEffect, useState } from "react";
+import { Plus, X, UserCog, UserX, UserCheck } from "lucide-react";
+import { api } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
+import { useToast } from "../components/Toast";
+import { fmtDate } from "../lib/format";
+import type { Role, User } from "../types";
+
+export default function AdminUsers() {
+  const { user: me } = useAuth();
+  const { ok, err } = useToast();
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showInvite, setShowInvite] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const r = await api.get<{ users: User[] }>("/api/users");
+      r.users.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+      setUsers(r.users);
+    } catch (e: any) { err(e?.message || "Failed"); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { load(); }, []);
+
+  async function toggleRole(u: User) {
+    const role: Role = u.role === "ADMIN" ? "EMPLOYEE" : "ADMIN";
+    if (!confirm(`Set ${u.email} to ${role}?`)) return;
+    try {
+      const r = await api.patch<{ user: User }>(`/api/users/${u.id}`, { role });
+      setUsers((ls) => ls.map((x) => (x.id === r.user.id ? r.user : x)));
+      ok("Role updated.");
+    } catch (e: any) { err(e?.message || "Failed"); }
+  }
+
+  async function toggleActive(u: User) {
+    const next = !u.active;
+    if (!confirm(`${next ? "Re-activate" : "Deactivate"} ${u.email}?`)) return;
+    try {
+      const r = await api.patch<{ user: User }>(`/api/users/${u.id}`, { active: next });
+      setUsers((ls) => ls.map((x) => (x.id === r.user.id ? r.user : x)));
+      ok(next ? "User re-activated." : "User deactivated.");
+    } catch (e: any) { err(e?.message || "Failed"); }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="font-display text-3xl tracking-tight">Users</h1>
+          <p className="text-sm text-white/55 mt-1">Invite teammates, promote admins, deactivate access.</p>
+        </div>
+        <button onClick={() => setShowInvite(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
+          <Plus size={16} /> Invite user
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="text-sm text-white/50">Loading…</div>
+      ) : (
+        <div className="ko-card overflow-hidden">
+          <table className="ko-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td className="font-medium">{u.name || "—"}{u.id === me?.id && <span className="text-[10px] uppercase tracking-[0.16em] text-brand-100 ml-2">you</span>}</td>
+                  <td>{u.email}</td>
+                  <td><span className={u.role === "ADMIN" ? "ko-pill-admin" : "ko-pill-employee"}>{u.role}</span></td>
+                  <td>{u.active ? <span className="text-emerald-300 text-xs">Active</span> : <span className="text-white/40 text-xs">Inactive</span>}</td>
+                  <td className="text-white/60">{fmtDate(u.createdAt)}</td>
+                  <td className="text-right space-x-1">
+                    {u.id !== me?.id && (
+                      <>
+                        <button onClick={() => toggleRole(u)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1">
+                          <UserCog size={12} /> {u.role === "ADMIN" ? "Demote" : "Promote"}
+                        </button>
+                        <button onClick={() => toggleActive(u)} className={"ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1 " + (u.active ? "hover:!border-red-400/40 hover:!text-red-200" : "")}>
+                          {u.active ? <><UserX size={12} /> Deactivate</> : <><UserCheck size={12} /> Activate</>}
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showInvite && <InviteDialog onClose={() => setShowInvite(false)} onSent={() => { setShowInvite(false); load(); }} />}
+    </div>
+  );
+}
+
+function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => void }) {
+  const { ok, err } = useToast();
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<Role>("EMPLOYEE");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.post("/api/users", { email: email.trim(), name: name.trim(), role });
+      ok(`Invitation sent to ${email}.`);
+      onSent();
+    } catch (e: any) { err(e?.message || "Failed"); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur flex items-center justify-center px-4">
+      <form onSubmit={submit} className="ko-card-glow p-6 w-full max-w-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-display text-xl">Invite user</h2>
+          <button type="button" className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
+        </div>
+        <div className="space-y-3">
+          <FieldRow label="Email">
+            <input type="email" required className="ko-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@kubegraf.io" />
+          </FieldRow>
+          <FieldRow label="Name (optional)">
+            <input className="ko-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+          </FieldRow>
+          <FieldRow label="Role">
+            <select className="ko-input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+              <option value="EMPLOYEE">Employee</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+          </FieldRow>
+        </div>
+        <p className="text-[11px] text-white/45 mt-4">A magic sign-in link will be emailed. It expires in 10 minutes; the invitation itself stays valid for 7 days.</p>
+        <div className="flex justify-end gap-2 mt-5">
+          <button type="button" onClick={onClose} className="ko-btn-ghost h-10 px-4 text-sm">Cancel</button>
+          <button type="submit" disabled={busy || !email} className="ko-btn-primary h-10 px-5 text-sm">{busy ? "Sending…" : "Send invite"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 mb-1.5">{label}</div>
+      {children}
+    </div>
+  );
+}

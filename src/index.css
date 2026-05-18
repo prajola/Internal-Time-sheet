@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: #000;
+  color: #e8e8e8;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  letter-spacing: 0.005em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Brand atmosphere — subtle warm radial behind the app ───── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 12% -10%, rgba(255,160,80,0.10), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 100% 110%, rgba(255,138,58,0.06), transparent 60%);
+  z-index: -1;
+}
+
+/* ── Inputs, buttons ───────────────────────────────────────── */
+@layer components {
+  .ko-input {
+    @apply w-full px-3.5 py-2.5 rounded-lg text-sm bg-white/[0.03] border border-white/10 text-white placeholder:text-white/30
+           focus:outline-none focus:border-brand-400 focus:bg-white/[0.05]
+           transition-colors;
+  }
+
+  .ko-btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+           transition-all duration-200 cursor-pointer;
+  }
+  .ko-btn-primary {
+    @apply ko-btn bg-brand-400 text-black hover:bg-brand-300 active:scale-[0.98]
+           shadow-[0_0_24px_rgba(255,160,80,0.20)];
+  }
+  .ko-btn-ghost {
+    @apply ko-btn bg-white/[0.04] text-white/85 hover:bg-white/[0.08] hover:text-white
+           border border-white/10 hover:border-white/20;
+  }
+  .ko-btn-danger {
+    @apply ko-btn bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:text-red-200
+           border border-red-500/30 hover:border-red-500/50;
+  }
+
+  .ko-card {
+    @apply rounded-2xl bg-white/[0.025] border border-white/[0.08] backdrop-blur-sm;
+  }
+  .ko-card-glow {
+    @apply ko-card;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,160,80,0.08),
+      0 4px 24px rgba(0,0,0,0.40);
+  }
+
+  .ko-pill {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider;
+  }
+  .ko-pill-admin {
+    @apply ko-pill bg-brand-400/15 text-brand-300 border border-brand-400/30;
+  }
+  .ko-pill-employee {
+    @apply ko-pill bg-white/[0.05] text-white/65 border border-white/10;
+  }
+
+  .ko-table {
+    @apply w-full text-sm border-collapse;
+  }
+  .ko-table thead th {
+    @apply px-3 py-2.5 text-left text-[10px] font-mono uppercase tracking-[0.14em] text-white/45 border-b border-white/[0.08];
+  }
+  .ko-table tbody td {
+    @apply px-3 py-3 text-white/80 border-b border-white/[0.05];
+  }
+  .ko-table tbody tr:hover {
+    @apply bg-white/[0.02];
+  }
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+::-webkit-scrollbar-thumb { background: rgba(255,160,80,0.20); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,160,80,0.40); }

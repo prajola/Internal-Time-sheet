@@ -1,0 +1,196 @@
+import { useEffect, useMemo, useState } from "react";
+import { Pencil, Trash2, Plus, X } from "lucide-react";
+import { api } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
+import { useToast } from "../components/Toast";
+import { Filters, FilterValue, buildQuery } from "../components/Filters";
+import { fmtDateTime, fmtMinutes, fromLocalInputValue, toLocalInputValue, todayYmd } from "../lib/format";
+import type { Task, TimeEntry } from "../types";
+
+export default function MyTimesheet() {
+  const { user } = useAuth();
+  const { ok, err } = useToast();
+  const [filter, setFilter] = useState<FilterValue>({ mode: "month", month: todayYmd().slice(0, 7) });
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState<TimeEntry | null>(null);
+
+  async function load() {
+    const q = buildQuery(filter);
+    try {
+      const [e, t] = await Promise.all([
+        api.get<{ entries: TimeEntry[] }>(`/api/time-entries${q ? `?${q}` : ""}`),
+        api.get<{ tasks: Task[] }>("/api/tasks"),
+      ]);
+      setEntries(e.entries);
+      setTasks(t.tasks);
+    } catch (e: any) { err(e?.message || "Failed"); }
+  }
+  useEffect(() => { load(); }, [filter]);
+
+  const total = useMemo(
+    () => entries.reduce((s, e) => s + (e.durationMinutes || 0), 0),
+    [entries]
+  );
+
+  async function remove(e: TimeEntry) {
+    if (!confirm("Delete this time entry?")) return;
+    try {
+      await api.del(`/api/time-entries/${e.id}`);
+      setEntries((ls) => ls.filter((x) => x.id !== e.id));
+      ok("Entry deleted.");
+    } catch (e: any) { err(e?.message || "Failed"); }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <h1 className="font-display text-3xl tracking-tight">My timesheet</h1>
+        <button onClick={() => setShowAdd(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
+          <Plus size={16} /> Add entry
+        </button>
+      </div>
+
+      <Filters
+        value={filter}
+        onChange={setFilter}
+        extra={
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-white/45">Total</div>
+            <div className="font-display text-2xl text-brand-100 leading-none">{fmtMinutes(total)}</div>
+          </div>
+        }
+      />
+
+      {entries.length === 0 ? (
+        <div className="ko-card p-6 text-sm text-white/55">No entries match the current filter.</div>
+      ) : (
+        <div className="ko-card overflow-hidden">
+          <table className="ko-table">
+            <thead>
+              <tr>
+                <th>Started</th>
+                <th>Ended</th>
+                <th>Duration</th>
+                <th>Task</th>
+                <th>Description</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id}>
+                  <td>{fmtDateTime(e.startedAt)}</td>
+                  <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-200">in progress</span>}</td>
+                  <td className="font-mono">{e.endedAt ? fmtMinutes(e.durationMinutes) : "—"}</td>
+                  <td className="text-white/70">{tasks.find((t) => t.id === e.taskId)?.title || "—"}</td>
+                  <td className="text-white/70">{e.description || "—"}</td>
+                  <td className="text-right space-x-1">
+                    <button className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1" onClick={() => setEditing(e)}>
+                      <Pencil size={12} /> Edit
+                    </button>
+                    <button className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1 hover:!border-red-400/40 hover:!text-red-200" onClick={() => remove(e)}>
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {(showAdd || editing) && (
+        <EntryDialog
+          entry={editing}
+          tasks={user!.role === "EMPLOYEE" ? tasks : []}
+          onClose={() => { setShowAdd(false); setEditing(null); }}
+          onSaved={(saved, created) => {
+            if (created) setEntries((ls) => [saved, ...ls]);
+            else setEntries((ls) => ls.map((x) => (x.id === saved.id ? saved : x)));
+            setShowAdd(false); setEditing(null);
+            ok(created ? "Entry created." : "Entry updated.");
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface DialogProps {
+  entry: TimeEntry | null;
+  tasks: Task[];
+  onClose: () => void;
+  onSaved: (e: TimeEntry, created: boolean) => void;
+}
+
+function EntryDialog({ entry, tasks, onClose, onSaved }: DialogProps) {
+  const { err } = useToast();
+  const [taskId, setTaskId] = useState(entry?.taskId || "");
+  const [description, setDescription] = useState(entry?.description || "");
+  const [startedAt, setStartedAt] = useState(toLocalInputValue(entry?.startedAt) || toLocalInputValue(new Date().toISOString()));
+  const [endedAt, setEndedAt] = useState(toLocalInputValue(entry?.endedAt));
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      const body: any = {
+        taskId: taskId || null,
+        description,
+        startedAt: fromLocalInputValue(startedAt),
+        endedAt: endedAt ? fromLocalInputValue(endedAt) : null,
+      };
+      if (entry) {
+        const r = await api.patch<{ entry: TimeEntry }>(`/api/time-entries/${entry.id}`, body);
+        onSaved(r.entry, false);
+      } else {
+        const r = await api.post<{ entry: TimeEntry }>(`/api/time-entries`, body);
+        onSaved(r.entry, true);
+      }
+    } catch (e: any) { err(e?.message || "Failed"); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur flex items-center justify-center px-4">
+      <div className="ko-card-glow p-6 w-full max-w-lg">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-display text-xl">{entry ? "Edit time entry" : "New time entry"}</h2>
+          <button className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
+        </div>
+        <div className="space-y-3">
+          {tasks.length > 0 && (
+            <Field label="Task">
+              <select className="ko-input" value={taskId} onChange={(e) => setTaskId(e.target.value)}>
+                <option value="">No task (general)</option>
+                {tasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+              </select>
+            </Field>
+          )}
+          <Field label="Description">
+            <textarea className="ko-input min-h-[80px]" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Started"><input type="datetime-local" className="ko-input" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} /></Field>
+            <Field label="Ended (leave blank = in progress)"><input type="datetime-local" className="ko-input" value={endedAt} onChange={(e) => setEndedAt(e.target.value)} /></Field>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button onClick={onClose} className="ko-btn-ghost h-10 px-4 text-sm">Cancel</button>
+          <button onClick={save} disabled={busy} className="ko-btn-primary h-10 px-5 text-sm">{busy ? "…" : "Save"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 mb-1.5">{label}</div>
+      {children}
+    </div>
+  );
+}
