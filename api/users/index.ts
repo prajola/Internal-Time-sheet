@@ -25,9 +25,10 @@ import {
   badRequest,
   methodNotAllowed,
 } from "../_lib/helpers.js";
-import { sendMail, magicLinkEmail } from "../_lib/email.js";
-import { issueMagicToken } from "../_lib/auth.js";
+import { sendMail, passwordSetupEmail } from "../_lib/email.js";
+import { issueSetupToken } from "../_lib/auth.js";
 import { notifyAdmin } from "../_lib/notify.js";
+import { publicUser } from "../_lib/passwords.js";
 import type { Role } from "../_lib/types.js";
 
 interface CreateBody {
@@ -41,8 +42,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const me = await requireAuth(req, res);
     if (!me) return;
     const users = await listUsers();
-    // Employees see only basic info (name + role); admins see all.
-    if (me.role === "ADMIN") return ok(res, { users });
+    // Employees see only basic info (name + role); admins see everything except the password hash.
+    if (me.role === "ADMIN") return ok(res, { users: users.map(publicUser) });
     return ok(res, {
       users: users.map((u) => ({ id: u.id, name: u.name, role: u.role, active: u.active })),
     });
@@ -70,22 +71,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     await upsertInvitation(inv);
 
-    // Send magic link straight away so they can complete signup on first click.
-    const appUrl = (process.env.APP_URL || "").replace(/\/$/, "");
-    if (appUrl) {
-      const token = issueMagicToken(e);
-      const link = `${appUrl}/auth/verify?token=${encodeURIComponent(token)}`;
-      const email_ = magicLinkEmail({ to: e, link });
-      await sendMail({
-        to: e,
-        subject: `${admin.name} invited you to KubeGraf Time Sheet`,
-        text:
-          `${admin.name} (${admin.email}) invited you to join the KubeGraf internal time sheet as a ${role.toLowerCase()}.\n\n` +
-          email_.text,
-        html: `<p>${admin.name} (&lt;${admin.email}&gt;) invited you as a <strong>${role.toLowerCase()}</strong>.</p>` + email_.html,
-        replyTo: admin.email,
-      });
-    }
+    // Email the invitee a "Set your password" link — single click activates account.
+    const appUrlBase = (process.env.APP_URL || "https://internal-time-sheet.vercel.app").replace(/\/$/, "");
+    const token = issueSetupToken(e, "setup");
+    const link = `${appUrlBase}/auth/set-password?token=${encodeURIComponent(token)}`;
+    const tpl = passwordSetupEmail({
+      to: e,
+      name: name || "",
+      link,
+      purpose: "setup",
+      invitedBy: admin.name,
+    });
+    await sendMail({
+      to: e,
+      subject: `${admin.name} invited you to KubeGraf Time Sheet`,
+      text: tpl.text,
+      html: tpl.html,
+      replyTo: admin.email,
+    });
 
     await notifyAdmin({
       subject: "User invited to Time Sheet",

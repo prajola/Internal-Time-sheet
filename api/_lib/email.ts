@@ -52,45 +52,80 @@ export async function sendMail(opts: SendOpts): Promise<{ ok: boolean; error?: s
   }
 }
 
-/* ── Magic-link email ─────────────────────────────────────────── */
+/* ── Password setup / reset email ─────────────────────────────── */
 
-export function magicLinkEmail(opts: {
+export function passwordSetupEmail(opts: {
   to: string;
+  name?: string;
   link: string;
+  purpose: "setup" | "reset";
   isFirstAdmin?: boolean;
+  invitedBy?: string;
 }): { subject: string; text: string; html: string } {
-  const greeting = opts.isFirstAdmin
-    ? "Welcome — you've been bootstrapped as the workspace admin."
-    : "Sign in to your KubeGraf workspace.";
-  const subject = "Your KubeGraf sign-in link";
+  const isReset = opts.purpose === "reset";
+  const greeting = opts.name ? `Hi ${opts.name},` : "Hello,";
+
+  const headline = isReset
+    ? "Reset your KubeGraf password"
+    : opts.isFirstAdmin
+      ? "Welcome — set up your KubeGraf admin account"
+      : "Set up your KubeGraf account";
+
+  const intro = isReset
+    ? "We received a request to reset the password on your KubeGraf Internal Time Sheet account."
+    : opts.isFirstAdmin
+      ? "You've been bootstrapped as the workspace administrator. Set a password to sign in."
+      : opts.invitedBy
+        ? `${opts.invitedBy} invited you to the KubeGraf Internal Time Sheet. Choose a password to activate your account.`
+        : "You've been invited to the KubeGraf Internal Time Sheet. Choose a password to activate your account.";
+
+  const cta = isReset ? "Reset password" : "Set password";
+  const subject = isReset ? "Reset your KubeGraf password" : "Set up your KubeGraf account";
+
   const text = [
     greeting,
     "",
-    "Click the link below to sign in. It expires in 10 minutes.",
+    intro,
+    "",
+    `Click the link below to ${isReset ? "reset" : "set"} your password. It expires in 24 hours.`,
     "",
     opts.link,
     "",
-    "If you didn't request this, you can safely ignore the email.",
+    "If you didn't request this, you can safely ignore this email — no changes will be made.",
+    "",
+    "— KubeGraf Internal Time Sheet",
   ].join("\n");
+
   const html = `
-    <div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#111;line-height:1.5;max-width:520px">
-      <h2 style="margin:0 0 12px 0;color:#000;">${greeting}</h2>
-      <p style="margin:0 0 18px 0;color:#444;">
-        Click the button below to sign in. The link is valid for 10 minutes and can only be used once.
-      </p>
-      <p>
-        <a href="${opts.link}"
-           style="display:inline-block;padding:12px 24px;background:#ffa340;color:#000;font-weight:600;
-                  text-decoration:none;border-radius:8px;">
-          Sign in to KubeGraf
-        </a>
-      </p>
-      <p style="margin-top:24px;color:#666;font-size:12px;">
-        If the button doesn't work, paste this URL into your browser:<br>
-        <span style="color:#888;word-break:break-all;">${opts.link}</span>
-      </p>
-      <p style="margin-top:24px;color:#888;font-size:12px;">
-        If you didn't request this, you can safely ignore this email.
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;line-height:1.5;max-width:520px;margin:0 auto;padding:24px;">
+      <div style="border:1px solid #e5e7eb;border-radius:12px;padding:32px;background:#fff;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
+          <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#ffd486,#ffa340);display:inline-flex;align-items:center;justify-content:center;color:#000;font-weight:700;">K</div>
+          <div>
+            <div style="font-weight:600;font-size:15px;color:#111;">KubeGraf</div>
+            <div style="font-size:11px;color:#6b7280;letter-spacing:0.12em;text-transform:uppercase;">Internal Time Sheet</div>
+          </div>
+        </div>
+        <h2 style="margin:0 0 12px 0;font-size:22px;font-weight:600;color:#111;">${headline}</h2>
+        <p style="margin:0 0 16px 0;color:#374151;">${greeting}</p>
+        <p style="margin:0 0 24px 0;color:#374151;">${intro}</p>
+        <p style="margin:0 0 28px 0;">
+          <a href="${opts.link}"
+             style="display:inline-block;padding:12px 22px;background:#ffa340;color:#111;font-weight:600;
+                    text-decoration:none;border-radius:8px;font-size:14px;">
+            ${cta}
+          </a>
+        </p>
+        <p style="margin:0 0 8px 0;color:#6b7280;font-size:12px;">This link expires in 24 hours and can only be used once.</p>
+        <p style="margin:0 0 24px 0;color:#6b7280;font-size:12px;">If the button doesn't work, paste this URL into your browser:</p>
+        <p style="margin:0 0 28px 0;font-size:12px;color:#9ca3af;word-break:break-all;background:#f9fafb;padding:10px 12px;border-radius:6px;border:1px solid #f3f4f6;">${opts.link}</p>
+        <hr style="border:none;border-top:1px solid #f3f4f6;margin:20px 0;" />
+        <p style="margin:0;color:#9ca3af;font-size:11px;">
+          If you didn't request this, you can safely ignore this email — no changes will be made to your account.
+        </p>
+      </div>
+      <p style="text-align:center;margin:16px 0 0 0;color:#9ca3af;font-size:11px;">
+        KubeGraf · Internal use only
       </p>
     </div>
   `;

@@ -12,12 +12,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import jwt, { type Secret, type SignOptions } from "jsonwebtoken";
 import { randomBytes } from "node:crypto";
-import type { SessionClaims, MagicLinkClaims, User } from "./types.js";
+import type { SessionClaims, SetupTokenClaims, User } from "./types.js";
 import { findUserById } from "./db.js";
 
 const SESSION_COOKIE = "its_session";
 const SESSION_TTL = "30d";
-const MAGIC_TTL = "10m";
+const SETUP_TTL = "24h";
 
 function secret(): Secret {
   const s = process.env.JWT_SECRET;
@@ -25,15 +25,23 @@ function secret(): Secret {
   return s;
 }
 
-export function issueMagicToken(email: string): string {
-  const claims = { email: email.trim().toLowerCase(), nonce: randomBytes(8).toString("hex") };
-  const opts: SignOptions = { expiresIn: MAGIC_TTL };
+/**
+ * Issue a password-setup / password-reset link token.
+ * Same shape for both — the `purpose` field is just an email-copy hint.
+ */
+export function issueSetupToken(email: string, purpose: "setup" | "reset" = "setup"): string {
+  const claims = {
+    email: email.trim().toLowerCase(),
+    purpose,
+    nonce: randomBytes(12).toString("hex"),
+  };
+  const opts: SignOptions = { expiresIn: SETUP_TTL };
   return jwt.sign(claims, secret(), opts);
 }
 
-export function verifyMagicToken(token: string): MagicLinkClaims | null {
+export function verifySetupToken(token: string): SetupTokenClaims | null {
   try {
-    return jwt.verify(token, secret()) as MagicLinkClaims;
+    return jwt.verify(token, secret()) as SetupTokenClaims;
   } catch {
     return null;
   }

@@ -8,6 +8,7 @@ import { requireAuth, requireAdmin } from "../_lib/auth.js";
 import { findUserById, upsertUser, listUsers } from "../_lib/db.js";
 import { readBody, ok, badRequest, notFound, methodNotAllowed } from "../_lib/helpers.js";
 import { notifyAdmin } from "../_lib/notify.js";
+import { publicUser } from "../_lib/passwords.js";
 import type { Role } from "../_lib/types.js";
 
 interface PatchBody {
@@ -29,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const u = await findUserById(id);
     if (!u) return notFound(res, "User not found");
-    return ok(res, { user: u });
+    return ok(res, { user: publicUser(u) });
   }
 
   if (req.method === "PATCH") {
@@ -76,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       byUser: me,
     });
 
-    return ok(res, { user: next });
+    return ok(res, { user: publicUser(next) });
   }
 
   if (req.method === "DELETE") {
@@ -106,7 +107,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       byUser: admin,
     });
 
-    return ok(res, { user: next });
+    return ok(res, { user: publicUser(next) });
   }
 
   return methodNotAllowed(res);

@@ -10,7 +10,9 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@vercel/blob": "^1.0.0",
+    "bcryptjs": "^2.4.3",
     "exceljs": "^4.4.0",
     "framer-motion": "^11.0.0",
     "jsonwebtoken": "^9.0.2",

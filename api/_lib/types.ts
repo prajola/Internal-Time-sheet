@@ -15,6 +15,8 @@ export interface User {
   active: boolean;
   createdAt: string;      // ISO
   invitedBy?: string;     // userId of inviter
+  passwordHash?: string | null;   // bcrypt hash; null until first set
+  passwordSetAt?: string | null;  // ISO — when password was first set or last changed
 }
 
 export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "BLOCKED";
@@ -64,10 +66,19 @@ export interface SessionClaims {
   exp: number;
 }
 
-/** Short-lived magic-link claims. */
+/** Short-lived magic-link claims (kept for back-compat — unused). */
 export interface MagicLinkClaims {
+  email: string;
+  nonce: string;
+  iat: number;
+  exp: number;
+}
+
+/** Password-setup / password-reset token claims. 24-hour TTL. */
+export interface SetupTokenClaims {
   email: string;                // lowercased
-  nonce: string;                // random per-link
+  purpose: "setup" | "reset";   // copy hint only — same flow
+  nonce: string;                // random per-link, single-use enforced
   iat: number;
   exp: number;
 }

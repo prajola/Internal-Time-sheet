@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, X, UserCog, UserX, UserCheck } from "lucide-react";
+import { Plus, X, UserCog, UserX, UserCheck, KeyRound } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../components/Toast";
@@ -44,6 +44,14 @@ export default function AdminUsers() {
     } catch (e: any) { err(e?.message || "Failed"); }
   }
 
+  async function resetPassword(u: User) {
+    if (!confirm(`Send a password-reset link to ${u.email}? Their current password will stop working immediately.`)) return;
+    try {
+      await api.post("/api/users/reset-password", { userId: u.id });
+      ok(`Reset link sent to ${u.email}.`);
+    } catch (e: any) { err(e?.message || "Failed"); }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-3 flex-wrap">
@@ -80,6 +88,9 @@ export default function AdminUsers() {
                   <td>{u.active ? <span className="text-emerald-300 text-xs">Active</span> : <span className="text-white/40 text-xs">Inactive</span>}</td>
                   <td className="text-white/60">{fmtDate(u.createdAt)}</td>
                   <td className="text-right space-x-1">
+                    <button onClick={() => resetPassword(u)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1" title="Email a password-reset link">
+                      <KeyRound size={12} /> Reset password
+                    </button>
                     {u.id !== me?.id && (
                       <>
                         <button onClick={() => toggleRole(u)} className="ko-btn-ghost h-8 px-2 text-xs inline-flex items-center gap-1">

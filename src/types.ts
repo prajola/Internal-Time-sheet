@@ -10,6 +10,8 @@ export interface User {
   active: boolean;
   createdAt: string;
   invitedBy?: string | null;
+  passwordHash?: string | null;     // never sent over the wire; server strips it
+  passwordSetAt?: string | null;    // ISO — null means user hasn't set a password yet
 }
 
 export interface Task {

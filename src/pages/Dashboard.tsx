@@ -20,7 +20,7 @@ export default function Dashboard() {
   async function load() {
     try {
       const [c, e, t] = await Promise.all([
-        api.get<{ open: TimeEntry | null }>("/api/time-entries/clock"),
+        api.get<{ open: TimeEntry | null }>("/api/time-entries?open=1"),
         api.get<{ entries: TimeEntry[] }>(`/api/time-entries?userId=${user!.id}`),
         user!.role === "EMPLOYEE"
           ? api.get<{ tasks: Task[] }>("/api/tasks")
@@ -49,8 +49,8 @@ export default function Dashboard() {
   async function clockIn() {
     setBusy(true);
     try {
-      const r = await api.post<{ entry: TimeEntry }>("/api/time-entries/clock", {
-        action: "in", taskId: taskId || null, description: note,
+      const r = await api.post<{ entry: TimeEntry }>("/api/time-entries", {
+        action: "clock-in", taskId: taskId || null, description: note,
       });
       setOpen(r.entry);
       setNote("");
@@ -63,7 +63,7 @@ export default function Dashboard() {
   async function clockOut() {
     setBusy(true);
     try {
-      const r = await api.post<{ entry: TimeEntry }>("/api/time-entries/clock", { action: "out" });
+      const r = await api.post<{ entry: TimeEntry }>("/api/time-entries", { action: "clock-out" });
       setOpen(null);
       setRecent((rs) => [r.entry, ...rs].slice(0, 10));
       ok(`Clocked out · ${fmtMinutes(r.entry.durationMinutes)}`);

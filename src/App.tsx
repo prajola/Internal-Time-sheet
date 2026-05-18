@@ -4,7 +4,8 @@ import { AuthProvider, useAuth } from "./lib/auth-context";
 import { ToastProvider } from "./components/Toast";
 import { AppLayout } from "./components/AppLayout";
 import Login from "./pages/Login";
-import VerifyToken from "./pages/VerifyToken";
+import SetPassword from "./pages/SetPassword";
+import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
 import MyTasks from "./pages/MyTasks";
 import MyTimesheet from "./pages/MyTimesheet";
@@ -17,7 +18,9 @@ function Protected() {
   const [, navigate] = useLocation();
 
   useEffect(() => {
-    if (!loading && !user && window.location.pathname !== "/login" && window.location.pathname !== "/auth/verify") {
+    const path = window.location.pathname;
+    const publicPaths = ["/login", "/forgot-password", "/auth/set-password"];
+    if (!loading && !user && !publicPaths.includes(path)) {
       navigate("/login");
     }
   }, [user, loading]);
@@ -56,7 +59,8 @@ export default function App() {
       <ToastProvider>
         <Switch>
           <Route path="/login" component={Login} />
-          <Route path="/auth/verify" component={VerifyToken} />
+          <Route path="/forgot-password" component={ForgotPassword} />
+          <Route path="/auth/set-password" component={SetPassword} />
           <Route component={Protected} />
         </Switch>
       </ToastProvider>
