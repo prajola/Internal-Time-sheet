@@ -23,7 +23,16 @@ import {
   isAllowedEmail, emailDomainError,
 } from "../_lib/helpers.js";
 
-interface Body { email?: string; password?: string }
+interface Body {
+  email?: string;
+  password?: string;
+  /**
+   * Optional. When set, the request only succeeds if the user's stored
+   * role matches. Mismatch returns 403 with code "ROLE_MISMATCH". Used
+   * by the User / Admin portal selector on the login page.
+   */
+  role?: "ADMIN" | "EMPLOYEE";
+}
 
 // Pre-computed bcrypt hash of an empty random string — used to keep
 // timing constant when the user record doesn't exist.
@@ -61,6 +70,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!passwordOk) {
     return res.status(401).json({ error: "Invalid email or password" });
+  }
+
+  // Portal gate: if the UI asked to sign in to a specific portal, enforce it.
+  if (body.role && body.role !== user.role) {
+    const wantedAdmin = body.role === "ADMIN";
+    return res.status(403).json({
+      error: wantedAdmin
+        ? "This account doesn't have admin access. Switch to the User portal to sign in."
+        : "This is an admin account. Switch to the Admin portal to sign in.",
+      code: "ROLE_MISMATCH",
+      actualRole: user.role,
+    });
   }
 
   const token = issueSessionToken(user);

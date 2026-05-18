@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Mail, AlertTriangle, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Mail, AlertTriangle, ShieldCheck, User as UserIcon, Shield } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import type { User } from "../types";
 
 type Step = "email" | "password" | "create-password" | "email-sent";
 type Intent = "signin" | "signup";
+type Portal = "EMPLOYEE" | "ADMIN";
 
 const ALLOWED_DOMAIN_HINT = "@kubegraf.io";
 const DOMAIN_REGEX = /@kubegraf\.io$/i;
@@ -28,6 +29,7 @@ export default function Login() {
   const [, navigate] = useLocation();
   const { setUser } = useAuth();
   const [intent, setIntent] = useState<Intent>("signin");
+  const [portal, setPortal] = useState<Portal>("EMPLOYEE");
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -92,12 +94,18 @@ export default function Login() {
     setErr(null); setBusy(true);
     try {
       const r = await api.post<{ user: User }>("/api/auth/login", {
-        email: trimmedEmail, password,
+        email: trimmedEmail, password, role: portal,
       });
       setUser(r.user);
-      navigate("/");
+      // Admins land in their Manage portal; users land on the dashboard.
+      navigate(r.user.role === "ADMIN" ? "/manage" : "/");
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Sign-in failed");
+      // Role-mismatch is its own error path — surface the right portal.
+      if (e instanceof ApiError && (e as any).status === 403 && /admin|user/i.test(e.message)) {
+        setErr(e.message);
+      } else {
+        setErr(e instanceof ApiError ? e.message : "Sign-in failed");
+      }
     } finally { setBusy(false); }
   }
 
@@ -112,7 +120,7 @@ export default function Login() {
         { email: trimmedEmail, password, name: displayName.trim() },
       );
       setUser(r.user);
-      navigate("/");
+      navigate(r.user.role === "ADMIN" ? "/manage" : "/");
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "Could not create account");
     } finally { setBusy(false); }
@@ -193,8 +201,44 @@ export default function Login() {
                 </button>
               </div>
 
+              {/* Portal selector — only meaningful for sign-in. New signups
+                  default to EMPLOYEE; the role toggle would be misleading. */}
+              {intent === "signin" && (
+                <div className="mb-6">
+                  <div className="text-[11px] uppercase tracking-[0.14em] text-gray-500 mb-2">Sign in as</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setPortal("EMPLOYEE"); setErr(null); }}
+                      className={
+                        "flex items-center gap-2 px-3 py-2.5 rounded-md border text-[13px] font-medium transition " +
+                        (portal === "EMPLOYEE"
+                          ? "bg-brand-50 border-brand-300 text-brand-800"
+                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50")
+                      }
+                    >
+                      <UserIcon size={14} /> User
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setPortal("ADMIN"); setErr(null); }}
+                      className={
+                        "flex items-center gap-2 px-3 py-2.5 rounded-md border text-[13px] font-medium transition " +
+                        (portal === "ADMIN"
+                          ? "bg-brand-50 border-brand-300 text-brand-800"
+                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50")
+                      }
+                    >
+                      <Shield size={14} /> Admin
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <h1 className="text-[22px] font-semibold text-gray-900 mb-1.5 tracking-tight">
-                {intent === "signin" ? "Welcome back" : "Create your account"}
+                {intent === "signin"
+                  ? (portal === "ADMIN" ? "Admin sign in" : "Welcome back")
+                  : "Create your account"}
               </h1>
               <p className="text-[13px] text-gray-500 mb-6">
                 Use your work email — only <span className="text-gray-800">{ALLOWED_DOMAIN_HINT}</span> addresses are allowed.
@@ -254,9 +298,20 @@ export default function Login() {
 
           {step === "password" && (
             <>
-              <button type="button" onClick={goBack} className="text-[12px] text-gray-500 hover:text-gray-900 inline-flex items-center gap-1 mb-3">
-                <ArrowLeft size={12} /> {trimmedEmail}
-              </button>
+              <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                <button type="button" onClick={goBack} className="text-[12px] text-gray-500 hover:text-gray-900 inline-flex items-center gap-1">
+                  <ArrowLeft size={12} /> {trimmedEmail}
+                </button>
+                <span className={
+                  "inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] px-2 py-0.5 rounded-full border " +
+                  (portal === "ADMIN"
+                    ? "bg-brand-50 text-brand-800 border-brand-200"
+                    : "bg-gray-50 text-gray-600 border-gray-200")
+                }>
+                  {portal === "ADMIN" ? <Shield size={10} /> : <UserIcon size={10} />}
+                  {portal === "ADMIN" ? "Admin portal" : "User portal"}
+                </span>
+              </div>
               <h1 className="text-[22px] font-semibold text-gray-900 mb-1.5 tracking-tight">
                 {name ? `Welcome back, ${name.split(" ")[0]}` : "Welcome back"}
               </h1>
