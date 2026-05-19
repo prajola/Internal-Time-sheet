@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, X, Pencil, Trash2, ListChecks, Download } from "lucide-react";
+import { Plus, X, Pencil, Trash2, ListChecks, Download, Search as SearchIcon, Filter, XCircle, CalendarRange } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
-import { fmtDate } from "../lib/format";
+import { fmtDate, todayYmd } from "../lib/format";
 import { downloadCsv, dateStampedName } from "../lib/csv";
 import type { Task, TaskPriority, TaskStatus, User } from "../types";
 
@@ -20,6 +20,11 @@ export default function AdminTasks() {
   const [creating, setCreating] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
+  // Date filter: which date column to apply, and what period to match.
+  const [dateField, setDateField] = useState<"due" | "created" | "updated">("due");
+  const [period, setPeriod] = useState<"all" | "today" | "week" | "month" | "year" | "overdue" | "custom">("all");
+  const [customDay, setCustomDay] = useState<string>("");      // YYYY-MM-DD
+  const [search, setSearch] = useState<string>("");
 
   async function load() {
     setLoading(true);
@@ -36,11 +41,84 @@ export default function AdminTasks() {
   useEffect(() => { load(); }, []);
 
   const filtered = useMemo(() => {
-    return tasks.filter((t) =>
-      (filterStatus === "all" || t.status === filterStatus) &&
-      (filterAssignee === "all" || t.assigneeId === filterAssignee || (filterAssignee === "none" && !t.assigneeId))
-    );
-  }, [tasks, filterStatus, filterAssignee]);
+    const q = search.trim().toLowerCase();
+    return tasks.filter((t) => {
+      // Status filter
+      if (filterStatus !== "all" && t.status !== filterStatus) return false;
+
+      // Assignee filter
+      if (filterAssignee !== "all") {
+        if (filterAssignee === "none" ? Boolean(t.assigneeId) : t.assigneeId !== filterAssignee) return false;
+      }
+
+      // Search across title + description + assignee name/email
+      if (q) {
+        const a = users.find((u) => u.id === t.assigneeId);
+        const hay = [t.title, t.description, a?.name, a?.email].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+
+      // Date filter
+      if (period !== "all") {
+        const fieldVal =
+          dateField === "due"     ? t.dueDate :
+          dateField === "created" ? t.createdAt :
+                                    t.updatedAt;
+
+        if (period === "overdue") {
+          // Only meaningful for the due date — task must have a due date in the past + not done.
+          if (!t.dueDate) return false;
+          if (t.status === "DONE") return false;
+          if (new Date(t.dueDate + "T23:59:59") >= new Date()) return false;
+          return true;
+        }
+
+        if (!fieldVal) return false;
+        const d = new Date(fieldVal);
+        if (Number.isNaN(d.getTime())) return false;
+
+        if (period === "today") {
+          const today = todayYmd();
+          if (fieldVal.slice(0, 10) !== today) return false;
+        } else if (period === "week") {
+          const start = startOfWeek(new Date()).getTime();
+          const end   = start + 7 * 24 * 3600 * 1000;
+          if (d.getTime() < start || d.getTime() >= end) return false;
+        } else if (period === "month") {
+          const start = startOfMonth(new Date()).getTime();
+          const end   = startOfMonth(addMonths(new Date(), 1)).getTime();
+          if (d.getTime() < start || d.getTime() >= end) return false;
+        } else if (period === "year") {
+          const start = startOfYear(new Date()).getTime();
+          const end   = startOfYear(addYears(new Date(), 1)).getTime();
+          if (d.getTime() < start || d.getTime() >= end) return false;
+        } else if (period === "custom") {
+          if (!customDay) return true; // no day picked yet → don't filter out
+          if (fieldVal.slice(0, 10) !== customDay) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [tasks, users, filterStatus, filterAssignee, period, dateField, customDay, search]);
+
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (filterStatus !== "all")   n++;
+    if (filterAssignee !== "all") n++;
+    if (period !== "all")         n++;
+    if (search.trim())            n++;
+    return n;
+  }, [filterStatus, filterAssignee, period, search]);
+
+  function clearFilters() {
+    setFilterStatus("all");
+    setFilterAssignee("all");
+    setPeriod("all");
+    setDateField("due");
+    setCustomDay("");
+    setSearch("");
+  }
 
   async function remove(t: Task) {
     if (!confirm(`Delete task "${t.title}"?`)) return;
@@ -96,29 +174,151 @@ export default function AdminTasks() {
         }
       />
 
-      <div className="ko-card p-3 flex gap-3 flex-wrap">
-        <select className="ko-input h-9 w-44" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-        </select>
-        <select className="ko-input h-9 w-56" value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)}>
-          <option value="all">All assignees</option>
-          <option value="none">Unassigned</option>
-          {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
-        </select>
+      <div className="ko-card p-4 mb-4">
+        {/* Top row — search + dropdowns + clear */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[200px]">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Search</div>
+            <div className="relative">
+              <SearchIcon size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Title, description, assignee…"
+                className="ko-input h-9 pl-8 pr-8 text-sm"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                  aria-label="Clear search"
+                >
+                  <XCircle size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Status</div>
+            <select className="ko-input h-9 w-40" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+              <option value="all">All statuses</option>
+              {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Assignee</div>
+            <select className="ko-input h-9 w-52" value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)}>
+              <option value="all">All assignees</option>
+              <option value="none">Unassigned</option>
+              {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+            </select>
+          </div>
+
+          {activeFilterCount > 0 && (
+            <button
+              onClick={clearFilters}
+              className="ko-btn-ghost h-9 px-3 text-xs inline-flex items-center gap-1.5 ml-auto"
+            >
+              <XCircle size={12} /> Clear all ({activeFilterCount})
+            </button>
+          )}
+        </div>
+
+        {/* Bottom row — date filter (collapsed unless period != all OR explicitly expanded) */}
+        <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-end gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5 inline-flex items-center gap-1.5">
+              <CalendarRange size={11} /> By
+            </div>
+            <select
+              className="ko-input h-9 w-36"
+              value={dateField}
+              onChange={(e) => setDateField(e.target.value as typeof dateField)}
+            >
+              <option value="due">Due date</option>
+              <option value="created">Created</option>
+              <option value="updated">Updated</option>
+            </select>
+          </div>
+
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Period</div>
+            <div className="inline-flex bg-gray-100 rounded-md p-0.5 flex-wrap">
+              {([
+                ["all",     "All"],
+                ["today",   "Today"],
+                ["week",    "This week"],
+                ["month",   "This month"],
+                ["year",    "This year"],
+                ["overdue", "Overdue"],
+                ["custom",  "Specific day"],
+              ] as const).map(([key, label]) => {
+                const disabled = key === "overdue" && dateField !== "due";
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setPeriod(key)}
+                    className={
+                      "h-8 px-3 rounded text-[12px] font-medium transition " +
+                      (period === key
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed")
+                    }
+                    title={disabled ? "Overdue only applies when filtering by Due date" : undefined}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {period === "custom" && (
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Day</div>
+              <input
+                type="date"
+                value={customDay}
+                onChange={(e) => setCustomDay(e.target.value)}
+                className="ko-input h-9 w-44"
+              />
+            </div>
+          )}
+
+          <div className="ml-auto text-right">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Showing</div>
+            <div className="font-display text-lg text-gray-900 leading-tight">
+              {filtered.length} <span className="text-gray-400 text-sm font-normal">of {tasks.length}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {loading ? (
-        <div className="text-sm text-gray-500">Loading…</div>
+        <div className="ko-card p-4 space-y-2">
+          {[1, 2, 3].map((i) => <div key={i} className="ko-skel h-10 w-full" />)}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="ko-card">
           <EmptyState
-            icon={<ListChecks size={20} />}
-            title="No tasks here"
-            description={tasks.length === 0 ? "Create the first task to get the team moving." : "Try changing the filters above."}
-            action={tasks.length === 0
-              ? <button onClick={() => setCreating(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5"><Plus size={16} /> New task</button>
-              : undefined}
+            icon={tasks.length === 0 ? <ListChecks size={20} /> : <Filter size={20} />}
+            title={tasks.length === 0 ? "No tasks yet" : "No tasks match these filters"}
+            description={
+              tasks.length === 0
+                ? "Create the first task to get the team moving."
+                : "Try widening your filters or clearing them."
+            }
+            action={
+              tasks.length === 0
+                ? <button onClick={() => setCreating(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5"><Plus size={16} /> New task</button>
+                : activeFilterCount > 0
+                  ? <button onClick={clearFilters} className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5"><XCircle size={14} /> Clear filters</button>
+                  : undefined
+            }
           />
         </div>
       ) : (
@@ -271,4 +471,36 @@ function priorityClass(p: string) {
   if (p === "HIGH")   return base + " border-brand-400 text-brand-800 bg-brand-50";
   if (p === "LOW")    return base + " border-gray-200 text-gray-500";
   return base + " border-gray-300 text-gray-700";
+}
+
+/* ── Date math ─────────────────────────────────────────────── */
+function startOfWeek(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const day = x.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+function startOfMonth(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(1);
+  return x;
+}
+function startOfYear(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setMonth(0, 1);
+  return x;
+}
+function addMonths(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + n);
+  return x;
+}
+function addYears(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setFullYear(x.getFullYear() + n);
+  return x;
 }
