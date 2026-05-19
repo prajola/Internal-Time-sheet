@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Mail, AlertTriangle, User as UserIcon, Shield } from "lucide-react";
 import { api, ApiError } from "../lib/api";
@@ -26,7 +26,16 @@ function scoreStrength(pw: string): Strength {
 
 export default function Login() {
   const [, navigate] = useLocation();
-  const { setUser } = useAuth();
+  const { user, loading, setUser } = useAuth();
+
+  // If we land on /login while already authenticated, bounce straight
+  // into the right portal — avoids the "log in twice" feel after a stale
+  // tab refresh or back-button navigation.
+  useEffect(() => {
+    if (!loading && user) {
+      navigate(user.role === "ADMIN" ? "/manage" : "/");
+    }
+  }, [user, loading]);
 
   const [intent, setIntent] = useState<Intent>("signin");
   const [portal, setPortal] = useState<Portal>("EMPLOYEE");
