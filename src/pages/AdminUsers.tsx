@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
-import { Plus, X, UserCog, UserX, UserCheck, Lock, Users as UsersIcon, Download } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Plus, X, UserCog, UserX, UserCheck, Lock, Users as UsersIcon, Download,
+  Search as SearchIcon, XCircle, CalendarRange, Filter,
+} from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { SetPasswordDialog } from "../components/SetPasswordDialog";
-import { fmtDate } from "../lib/format";
+import { fmtDate, todayYmd } from "../lib/format";
 import { downloadCsv, dateStampedName } from "../lib/csv";
 import type { Role, User } from "../types";
 
@@ -17,6 +20,13 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [setPwTarget, setSetPwTarget] = useState<User | null>(null);
+
+  // Filters — mirror the AdminTasks pattern.
+  const [search, setSearch] = useState<string>("");
+  const [filterRole, setFilterRole] = useState<"all" | "ADMIN" | "EMPLOYEE">("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
+  const [period, setPeriod] = useState<"all" | "today" | "week" | "month" | "year" | "custom">("all");
+  const [customDay, setCustomDay] = useState<string>("");
 
   async function load() {
     setLoading(true);
@@ -53,11 +63,70 @@ export default function AdminUsers() {
     setSetPwTarget(u);
   }
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return users.filter((u) => {
+      if (filterRole !== "all" && u.role !== filterRole) return false;
+      if (filterStatus === "active"   && !u.active) return false;
+      if (filterStatus === "inactive" &&  u.active) return false;
+
+      if (q) {
+        const hay = `${u.name || ""} ${u.email}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+
+      if (period !== "all") {
+        const joined = u.createdAt;
+        if (!joined) return false;
+        const d = new Date(joined);
+        if (Number.isNaN(d.getTime())) return false;
+
+        if (period === "today") {
+          if (joined.slice(0, 10) !== todayYmd()) return false;
+        } else if (period === "week") {
+          const start = startOfWeek(new Date()).getTime();
+          const end   = start + 7 * 24 * 3600 * 1000;
+          if (d.getTime() < start || d.getTime() >= end) return false;
+        } else if (period === "month") {
+          const start = startOfMonth(new Date()).getTime();
+          const end   = startOfMonth(addMonths(new Date(), 1)).getTime();
+          if (d.getTime() < start || d.getTime() >= end) return false;
+        } else if (period === "year") {
+          const start = startOfYear(new Date()).getTime();
+          const end   = startOfYear(addYears(new Date(), 1)).getTime();
+          if (d.getTime() < start || d.getTime() >= end) return false;
+        } else if (period === "custom") {
+          if (!customDay) return true;
+          if (joined.slice(0, 10) !== customDay) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [users, search, filterRole, filterStatus, period, customDay]);
+
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (search.trim())            n++;
+    if (filterRole !== "all")     n++;
+    if (filterStatus !== "all")   n++;
+    if (period !== "all")         n++;
+    return n;
+  }, [search, filterRole, filterStatus, period]);
+
+  function clearFilters() {
+    setSearch("");
+    setFilterRole("all");
+    setFilterStatus("all");
+    setPeriod("all");
+    setCustomDay("");
+  }
+
   function exportCsv() {
-    if (users.length === 0) { err("No users to export"); return; }
+    if (filtered.length === 0) { err("No users to export"); return; }
     const rows: Array<Array<unknown>> = [
       ["ID", "Name", "Email", "Role", "Active", "Joined", "Password set", "Sessions revoked", "Invited by"],
-      ...users.map((u) => [
+      ...filtered.map((u) => [
         u.id,
         u.name || "",
         u.email,
@@ -70,7 +139,7 @@ export default function AdminUsers() {
       ]),
     ];
     downloadCsv(dateStampedName("kubegraf-users"), rows);
-    ok("Users CSV downloaded.");
+    ok(`Users CSV downloaded (${filtered.length} row${filtered.length === 1 ? "" : "s"}).`);
   }
 
   return (
@@ -82,7 +151,7 @@ export default function AdminUsers() {
         description="Invite teammates, promote admins, manage access."
         actions={
           <>
-            <button onClick={exportCsv} disabled={users.length === 0} className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5">
+            <button onClick={exportCsv} disabled={filtered.length === 0} className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5">
               <Download size={14} /> Export CSV
             </button>
             <button onClick={() => setShowInvite(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
@@ -91,6 +160,110 @@ export default function AdminUsers() {
           </>
         }
       />
+
+      {/* ── Filter card ─────────────────────────────────────── */}
+      {users.length > 0 && (
+        <div className="ko-card p-4 mb-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Search</div>
+              <div className="relative">
+                <SearchIcon size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Name or email…"
+                  className="ko-input h-9 pl-8 pr-8 text-sm"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                    aria-label="Clear search"
+                  >
+                    <XCircle size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Role</div>
+              <select className="ko-input h-9 w-36" value={filterRole} onChange={(e) => setFilterRole(e.target.value as typeof filterRole)}>
+                <option value="all">All roles</option>
+                <option value="ADMIN">Admin</option>
+                <option value="EMPLOYEE">Employee</option>
+              </select>
+            </div>
+
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Status</div>
+              <select className="ko-input h-9 w-36" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}>
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            {activeFilterCount > 0 && (
+              <button onClick={clearFilters} className="ko-btn-ghost h-9 px-3 text-xs inline-flex items-center gap-1.5 ml-auto">
+                <XCircle size={12} /> Clear all ({activeFilterCount})
+              </button>
+            )}
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-end gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5 inline-flex items-center gap-1.5">
+                <CalendarRange size={11} /> Joined
+              </div>
+              <div className="inline-flex bg-gray-100 rounded-md p-0.5 flex-wrap">
+                {([
+                  ["all",    "All time"],
+                  ["today",  "Today"],
+                  ["week",   "This week"],
+                  ["month",  "This month"],
+                  ["year",   "This year"],
+                  ["custom", "Specific day"],
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPeriod(key)}
+                    className={
+                      "h-8 px-3 rounded text-[12px] font-medium transition " +
+                      (period === key
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-800")
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {period === "custom" && (
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Day</div>
+                <input
+                  type="date"
+                  value={customDay}
+                  onChange={(e) => setCustomDay(e.target.value)}
+                  className="ko-input h-9 w-44"
+                />
+              </div>
+            )}
+
+            <div className="ml-auto text-right">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Showing</div>
+              <div className="font-display text-lg text-gray-900 leading-tight">
+                {filtered.length} <span className="text-gray-400 text-sm font-normal">of {users.length}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="ko-card p-4 space-y-3">
@@ -109,6 +282,19 @@ export default function AdminUsers() {
             }
           />
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="ko-card">
+          <EmptyState
+            icon={<Filter size={20} />}
+            title="No users match these filters"
+            description="Try widening your filters or clearing them."
+            action={
+              activeFilterCount > 0
+                ? <button onClick={clearFilters} className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5"><XCircle size={14} /> Clear filters</button>
+                : undefined
+            }
+          />
+        </div>
       ) : (
         <div className="ko-card overflow-hidden">
           <table className="ko-table">
@@ -123,7 +309,7 @@ export default function AdminUsers() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {filtered.map((u) => (
                 <tr key={u.id}>
                   <td className="font-medium">{u.name || "—"}{u.id === me?.id && <span className="text-[10px] uppercase tracking-[0.16em] text-brand-800 ml-2">you</span>}</td>
                   <td>{u.email}</td>
@@ -222,4 +408,36 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
       {children}
     </div>
   );
+}
+
+/* ── Date math ─────────────────────────────────────────────── */
+function startOfWeek(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const day = x.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+function startOfMonth(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(1);
+  return x;
+}
+function startOfYear(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setMonth(0, 1);
+  return x;
+}
+function addMonths(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + n);
+  return x;
+}
+function addYears(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setFullYear(x.getFullYear() + n);
+  return x;
 }
