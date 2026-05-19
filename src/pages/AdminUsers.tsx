@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, X, UserCog, UserX, UserCheck, Lock, Users as UsersIcon } from "lucide-react";
+import { Plus, X, UserCog, UserX, UserCheck, Lock, Users as UsersIcon, Download } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../components/Toast";
@@ -7,6 +7,7 @@ import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { SetPasswordDialog } from "../components/SetPasswordDialog";
 import { fmtDate } from "../lib/format";
+import { downloadCsv, dateStampedName } from "../lib/csv";
 import type { Role, User } from "../types";
 
 export default function AdminUsers() {
@@ -52,6 +53,26 @@ export default function AdminUsers() {
     setSetPwTarget(u);
   }
 
+  function exportCsv() {
+    if (users.length === 0) { err("No users to export"); return; }
+    const rows: Array<Array<unknown>> = [
+      ["ID", "Name", "Email", "Role", "Active", "Joined", "Password set", "Sessions revoked", "Invited by"],
+      ...users.map((u) => [
+        u.id,
+        u.name || "",
+        u.email,
+        u.role,
+        u.active ? "yes" : "no",
+        u.createdAt,
+        u.passwordSetAt || "",
+        u.sessionsRevokedAt || "",
+        u.invitedBy || "",
+      ]),
+    ];
+    downloadCsv(dateStampedName("kubegraf-users"), rows);
+    ok("Users CSV downloaded.");
+  }
+
   return (
     <div>
       <PageHeader
@@ -60,9 +81,14 @@ export default function AdminUsers() {
         title="Users"
         description="Invite teammates, promote admins, manage access."
         actions={
-          <button onClick={() => setShowInvite(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
-            <Plus size={16} /> Invite user
-          </button>
+          <>
+            <button onClick={exportCsv} disabled={users.length === 0} className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5">
+              <Download size={14} /> Export CSV
+            </button>
+            <button onClick={() => setShowInvite(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
+              <Plus size={16} /> Invite user
+            </button>
+          </>
         }
       />
 

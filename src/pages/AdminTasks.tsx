@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, X, Pencil, Trash2, ListChecks } from "lucide-react";
+import { Plus, X, Pencil, Trash2, ListChecks, Download } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { fmtDate } from "../lib/format";
+import { downloadCsv, dateStampedName } from "../lib/csv";
 import type { Task, TaskPriority, TaskStatus, User } from "../types";
 
 const STATUSES: TaskStatus[] = ["TODO", "IN_PROGRESS", "BLOCKED", "DONE"];
@@ -50,6 +51,32 @@ export default function AdminTasks() {
     } catch (e: any) { err(e?.message || "Failed"); }
   }
 
+  function exportCsv() {
+    if (filtered.length === 0) { err("No tasks to export"); return; }
+    const rows: Array<Array<unknown>> = [
+      ["ID", "Title", "Description", "Assignee", "Assignee email", "Status", "Priority", "Due date", "Created", "Updated", "Created by"],
+      ...filtered.map((t) => {
+        const a = users.find((u) => u.id === t.assigneeId);
+        const c = users.find((u) => u.id === t.createdBy);
+        return [
+          t.id,
+          t.title,
+          (t.description || "").replace(/\s+/g, " "),
+          a?.name || "",
+          a?.email || "",
+          t.status,
+          t.priority,
+          t.dueDate || "",
+          t.createdAt,
+          t.updatedAt,
+          c?.email || "",
+        ];
+      }),
+    ];
+    downloadCsv(dateStampedName("kubegraf-tasks"), rows);
+    ok(`Tasks CSV downloaded (${filtered.length} row${filtered.length === 1 ? "" : "s"}).`);
+  }
+
   return (
     <div>
       <PageHeader
@@ -58,9 +85,14 @@ export default function AdminTasks() {
         title="Tasks"
         description="Create, assign and follow tasks across the team."
         actions={
-          <button onClick={() => setCreating(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
-            <Plus size={16} /> New task
-          </button>
+          <>
+            <button onClick={exportCsv} disabled={filtered.length === 0} className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5">
+              <Download size={14} /> Export CSV
+            </button>
+            <button onClick={() => setCreating(true)} className="ko-btn-primary h-10 px-4 text-sm inline-flex items-center gap-1.5">
+              <Plus size={16} /> New task
+            </button>
+          </>
         }
       />
 

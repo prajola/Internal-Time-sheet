@@ -6,6 +6,7 @@ import { Filters, FilterValue, buildQuery } from "../components/Filters";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { fmtDateTime, fmtMinutes, todayYmd } from "../lib/format";
+import { downloadCsv as csvDownload, dateStampedName } from "../lib/csv";
 import type { Task, TimeEntry, User } from "../types";
 
 export default function AdminTimesheets() {
@@ -48,30 +49,26 @@ export default function AdminTimesheets() {
   }, [entries, users]);
 
   function downloadCsv() {
-    const rows = [
-      ["User", "Email", "Task", "Started", "Ended", "Minutes", "Description"],
+    if (entries.length === 0) { err("No entries to export"); return; }
+    const rows: Array<Array<unknown>> = [
+      ["User", "Email", "Task", "Started", "Ended", "Minutes", "Hours", "Description"],
       ...entries.map((e) => {
         const u = users.find((x) => x.id === e.userId);
         const t = tasks.find((x) => x.id === e.taskId);
+        const mins = e.durationMinutes ?? 0;
         return [
           u?.name || "",
           u?.email || "",
           t?.title || "",
           e.startedAt,
           e.endedAt || "",
-          String(e.durationMinutes ?? 0),
+          String(mins),
+          (mins / 60).toFixed(2),
           (e.description || "").replace(/\n/g, " "),
         ];
       }),
     ];
-    const csv = rows.map((r) => r.map(escapeCsv).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `timesheet-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+    csvDownload(dateStampedName("kubegraf-timesheets"), rows);
   }
 
   return (
@@ -172,8 +169,3 @@ export default function AdminTimesheets() {
   );
 }
 
-function escapeCsv(s: string): string {
-  if (s == null) return "";
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}

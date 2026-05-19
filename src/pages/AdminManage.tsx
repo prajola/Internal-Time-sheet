@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { SetPasswordDialog } from "../components/SetPasswordDialog";
+import { downloadCsv as csvDownload, dateStampedName } from "../lib/csv";
 import { Link } from "wouter";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
@@ -199,8 +200,9 @@ export default function AdminManage() {
       const myTasks = tasks.filter((t) => t.assigneeId === selected.id);
       const myCreated = tasks.filter((t) => t.createdBy === selected.id);
       const csv = buildUserCsv(selected, entries, myTasks, myCreated, users);
-      // Excel friendliness: prepend a UTF-8 BOM so non-ASCII names + accents
-      // render correctly when opened directly in Excel for Windows.
+      // buildUserCsv returns a CSV string with multiple sections (identity,
+      // entries, tasks). It's not a flat rowsToCsv input, so handle it
+      // here directly. Same BOM + deferred-cleanup pattern.
       const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -210,12 +212,32 @@ export default function AdminManage() {
       a.style.display = "none";
       document.body.appendChild(a);
       a.click();
-      // Defer cleanup — Safari aborts the download if we revoke immediately.
       setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1000);
       ok("CSV downloaded.");
     } catch (e: any) {
       err(e?.message || "Could not download CSV");
     }
+  }
+
+  /** Workspace-wide users CSV — one row per user. */
+  function exportWorkspaceCsv() {
+    if (users.length === 0) { err("No users to export"); return; }
+    const rows: Array<Array<unknown>> = [
+      ["ID", "Name", "Email", "Role", "Active", "Joined", "Password set", "Sessions revoked", "Invited by"],
+      ...users.map((u) => [
+        u.id,
+        u.name || "",
+        u.email,
+        u.role,
+        u.active ? "yes" : "no",
+        u.createdAt,
+        u.passwordSetAt || "",
+        u.sessionsRevokedAt || "",
+        u.invitedBy || "",
+      ]),
+    ];
+    csvDownload(dateStampedName("kubegraf-users"), rows);
+    ok("Users CSV downloaded.");
   }
 
   /**
@@ -345,6 +367,16 @@ export default function AdminManage() {
         eyebrow="Administration"
         title="Manage"
         description="Full administrative control over team members — passwords, sessions, roles, access, deletion."
+        actions={
+          <button
+            onClick={exportWorkspaceCsv}
+            disabled={users.length === 0}
+            className="ko-btn-ghost h-10 px-4 text-sm inline-flex items-center gap-1.5"
+            title="One row per user with their key fields"
+          >
+            <Download size={14} /> Export users CSV
+          </button>
+        }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5">
