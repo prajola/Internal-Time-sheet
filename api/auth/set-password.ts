@@ -18,7 +18,13 @@
  * the trust boundary below "valid org email".
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { findUserByEmail, listUsers, upsertUser } from "../_lib/db.js";
+import {
+  findUserByEmail,
+  listUsers,
+  upsertUser,
+  findInvitationByEmail,
+  upsertInvitation,
+} from "../_lib/db.js";
 import {
   verifySetupToken,
   issueSessionToken,
@@ -59,8 +65,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (token) {
     const claims = verifySetupToken(token);
     if (!claims) return badRequest(res, "This link is invalid or has expired. Request a new one.");
-    const user = await findUserByEmail(claims.email);
-    if (!user || !user.active) return badRequest(res, "Account not found or inactive");
+
+    let user = await findUserByEmail(claims.email);
+
+    // Invite-acceptance path: no user record yet, but maybe a pending
+    // invitation. If so, consume it and create the user with that role.
+    // (Without this, the email link from "Invite user" would always say
+    // "Account not found" — old behavior, now fixed.)
+    if (!user) {
+      const invitation = await findInvitationByEmail(claims.email);
+      if (!invitation) {
+        return badRequest(res, "Account not found. Ask your admin for a fresh invitation.");
+      }
+      user = {
+        id: uuid(),
+        email: claims.email,
+        name: name || "",
+        role: invitation.role,
+        active: true,
+        createdAt: nowIso(),
+        invitedBy: invitation.invitedBy,
+        passwordHash: null,
+        passwordSetAt: null,
+      };
+      // Mark the invitation accepted so it can't be re-used.
+      invitation.acceptedAt = nowIso();
+      try { await upsertInvitation(invitation); } catch { /* non-fatal */ }
+    } else if (!user.active) {
+      return badRequest(res, "Your account is disabled. Contact an admin.");
+    }
 
     const wasFirstSet = !user.passwordHash;
     user.passwordHash = await hashPassword(password);
