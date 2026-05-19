@@ -13,6 +13,8 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminTasks from "./pages/AdminTasks";
 import AdminTimesheets from "./pages/AdminTimesheets";
 import AdminManage from "./pages/AdminManage";
+import AdminQueries from "./pages/AdminQueries";
+import MyQueries from "./pages/MyQueries";
 
 function Protected() {
   const { user, loading } = useAuth();
@@ -43,10 +45,12 @@ function Protected() {
         <Route path="/" component={Dashboard} />
         <Route path="/my-tasks" component={MyTasks} />
         <Route path="/my-timesheet" component={MyTimesheet} />
+        <Route path="/my-queries" component={MyQueries} />
         {isAdmin && <Route path="/users" component={AdminUsers} />}
         {isAdmin && <Route path="/tasks" component={AdminTasks} />}
         {isAdmin && <Route path="/timesheets" component={AdminTimesheets} />}
         {isAdmin && <Route path="/manage" component={AdminManage} />}
+        {isAdmin && <Route path="/queries" component={AdminQueries} />}
         <Route>
           <div className="ko-card p-6 text-sm text-white/55">Page not found.</div>
         </Route>

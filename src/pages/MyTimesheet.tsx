@@ -183,7 +183,7 @@ function EntryDialog({ entry, tasks, onClose, onSaved }: DialogProps) {
           <Field label="Description">
             <textarea className="ko-input min-h-[80px]" value={description} onChange={(e) => setDescription(e.target.value)} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Started"><input type="datetime-local" className="ko-input" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} /></Field>
             <Field label="Ended (leave blank = in progress)"><input type="datetime-local" className="ko-input" value={endedAt} onChange={(e) => setEndedAt(e.target.value)} /></Field>
           </div>

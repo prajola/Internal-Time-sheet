@@ -51,7 +51,10 @@ export type NotificationKind =
   | "account-password-reset"
   | "account-force-signout"
   | "clock-in"
-  | "clock-out";
+  | "clock-out"
+  | "query-raised"
+  | "query-responded"
+  | "query-status-changed";
 
 export interface Notification {
   id: string;
@@ -75,4 +78,25 @@ export interface Invitation {
   createdAt: string;
   expiresAt: string;
   acceptedAt?: string | null;
+}
+
+export type QueryCategory = "PORTAL" | "TECHNICAL" | "TASK" | "OTHER";
+export type QueryStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+
+export interface SupportQuery {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  category: QueryCategory;
+  subject: string;
+  body: string;
+  status: QueryStatus;
+  taskId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  adminResponse: string;
+  respondedAt: string | null;
+  respondedBy: string | null;
+  respondedByName: string | null;
 }

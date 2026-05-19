@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Plus, X, UserCog, UserX, UserCheck, Lock, Users as UsersIcon, Download,
-  Search as SearchIcon, XCircle, CalendarRange, Filter,
+  Search as SearchIcon, XCircle, CalendarRange, Filter, Copy, Check, Mail, AlertCircle,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
@@ -187,18 +187,18 @@ export default function AdminUsers() {
               </div>
             </div>
 
-            <div>
+            <div className="w-full sm:w-auto">
               <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Role</div>
-              <select className="ko-input h-9 w-36" value={filterRole} onChange={(e) => setFilterRole(e.target.value as typeof filterRole)}>
+              <select className="ko-input h-9 w-full sm:w-36" value={filterRole} onChange={(e) => setFilterRole(e.target.value as typeof filterRole)}>
                 <option value="all">All roles</option>
                 <option value="ADMIN">Admin</option>
                 <option value="EMPLOYEE">Employee</option>
               </select>
             </div>
 
-            <div>
+            <div className="w-full sm:w-auto">
               <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Status</div>
-              <select className="ko-input h-9 w-36" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}>
+              <select className="ko-input h-9 w-full sm:w-36" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}>
                 <option value="all">All</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -206,7 +206,7 @@ export default function AdminUsers() {
             </div>
 
             {activeFilterCount > 0 && (
-              <button onClick={clearFilters} className="ko-btn-ghost h-9 px-3 text-xs inline-flex items-center gap-1.5 ml-auto">
+              <button onClick={clearFilters} className="ko-btn-ghost h-9 px-3 text-xs inline-flex items-center gap-1.5 w-full sm:w-auto sm:ml-auto justify-center">
                 <XCircle size={12} /> Clear all ({activeFilterCount})
               </button>
             )}
@@ -244,18 +244,18 @@ export default function AdminUsers() {
             </div>
 
             {period === "custom" && (
-              <div>
+              <div className="w-full sm:w-auto">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Day</div>
                 <input
                   type="date"
                   value={customDay}
                   onChange={(e) => setCustomDay(e.target.value)}
-                  className="ko-input h-9 w-44"
+                  className="ko-input h-9 w-full sm:w-44"
                 />
               </div>
             )}
 
-            <div className="ml-auto text-right">
+            <div className="w-full sm:w-auto sm:ml-auto text-left sm:text-right">
               <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Showing</div>
               <div className="font-display text-lg text-gray-900 leading-tight">
                 {filtered.length} <span className="text-gray-400 text-sm font-normal">of {users.length}</span>
@@ -350,51 +350,134 @@ export default function AdminUsers() {
   );
 }
 
+interface InviteResult {
+  invitation: { id: string; email: string; role: Role };
+  setupLink: string;
+  emailSent: boolean;
+}
+
 function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => void }) {
-  const { ok, err } = useToast();
+  const { err } = useToast();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("EMPLOYEE");
   const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<InviteResult | null>(null);
+  const [copied, setCopied] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post("/api/users", { email: email.trim(), name: name.trim(), role });
-      ok(`Invitation sent to ${email}.`);
-      onSent();
+      const r = await api.post<InviteResult>("/api/users", { email: email.trim(), name: name.trim(), role });
+      setResult(r);
     } catch (e: any) { err(e?.message || "Failed"); }
     finally { setBusy(false); }
   }
 
+  async function copyLink() {
+    if (!result?.setupLink) return;
+    try {
+      await navigator.clipboard.writeText(result.setupLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API blocked (insecure context); fall back to selecting.
+      const el = document.getElementById("invite-setup-link") as HTMLInputElement | null;
+      el?.select();
+    }
+  }
+
+  function closeAndRefresh() {
+    if (result) onSent();
+    else onClose();
+  }
+
   return (
     <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
-      <form onSubmit={submit} className="ko-card-glow p-6 w-full max-w-md ko-modal-body">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="font-display text-xl">Invite user</h2>
-          <button type="button" className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
+      {result ? (
+        /* ── Success state — show the copy-able link ───────────────── */
+        <div className="ko-card-glow p-6 w-full max-w-md ko-modal-body">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-display text-xl inline-flex items-center gap-2">
+              <Check size={18} className="text-emerald-600" /> Invite created
+            </h2>
+            <button type="button" className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={closeAndRefresh}><X size={14} /></button>
+          </div>
+
+          <p className="text-[13px] text-gray-700 mb-1">
+            Send this link to <span className="text-gray-900 font-medium">{result.invitation.email}</span> so they can set their password and sign in.
+          </p>
+          <p className="text-[12px] text-gray-500 mb-3">Link expires in 24 hours · invitation valid for 7 days.</p>
+
+          <div className="flex gap-2 items-stretch">
+            <input
+              id="invite-setup-link"
+              readOnly
+              value={result.setupLink}
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+              className="ko-input h-10 text-[12px] font-mono flex-1 min-w-0"
+            />
+            <button
+              type="button"
+              onClick={copyLink}
+              className={
+                "h-10 px-3 text-[13px] font-medium rounded-md inline-flex items-center gap-1.5 transition border " +
+                (copied
+                  ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                  : "bg-brand-500 border-brand-500 text-black hover:brightness-105")
+              }
+            >
+              {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+            </button>
+          </div>
+
+          <div className={
+            "mt-4 rounded-md border p-3 text-[12px] inline-flex items-start gap-2 " +
+            (result.emailSent
+              ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+              : "bg-amber-50 border-amber-200 text-amber-900")
+          }>
+            {result.emailSent ? <Mail size={13} className="mt-0.5 flex-shrink-0" /> : <AlertCircle size={13} className="mt-0.5 flex-shrink-0" />}
+            {result.emailSent
+              ? <span>Also emailed to <span className="font-medium">{result.invitation.email}</span> in case they check their inbox.</span>
+              : <span>Email delivery isn't configured on this deployment — paste the link above into Slack/WhatsApp/SMS and send it to them yourself.</span>}
+          </div>
+
+          <div className="flex justify-end mt-5">
+            <button type="button" onClick={closeAndRefresh} className="ko-btn-primary h-10 px-5 text-sm">Done</button>
+          </div>
         </div>
-        <div className="space-y-3">
-          <FieldRow label="Email">
-            <input type="email" required className="ko-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@kubegraf.io" />
-          </FieldRow>
-          <FieldRow label="Name (optional)">
-            <input className="ko-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
-          </FieldRow>
-          <FieldRow label="Role">
-            <select className="ko-input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-              <option value="EMPLOYEE">Employee</option>
-              <option value="ADMIN">Admin</option>
-            </select>
-          </FieldRow>
-        </div>
-        <p className="text-[11px] text-gray-500 mt-4">A magic sign-in link will be emailed. It expires in 10 minutes; the invitation itself stays valid for 7 days.</p>
-        <div className="flex justify-end gap-2 mt-5">
-          <button type="button" onClick={onClose} className="ko-btn-ghost h-10 px-4 text-sm">Cancel</button>
-          <button type="submit" disabled={busy || !email} className="ko-btn-primary h-10 px-5 text-sm">{busy ? "Sending…" : "Send invite"}</button>
-        </div>
-      </form>
+      ) : (
+        /* ── Form state ────────────────────────────────────────────── */
+        <form onSubmit={submit} className="ko-card-glow p-6 w-full max-w-md ko-modal-body">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-display text-xl">Invite user</h2>
+            <button type="button" className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
+          </div>
+          <div className="space-y-3">
+            <FieldRow label="Email">
+              <input type="email" required className="ko-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@kubegraf.io" />
+            </FieldRow>
+            <FieldRow label="Name (optional)">
+              <input className="ko-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+            </FieldRow>
+            <FieldRow label="Role">
+              <select className="ko-input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+                <option value="EMPLOYEE">Employee</option>
+                <option value="ADMIN">Admin</option>
+              </select>
+            </FieldRow>
+          </div>
+          <p className="text-[11px] text-gray-500 mt-4">
+            You'll get a setup link to share with them. It expires in 24 hours; the invitation itself stays valid for 7 days. If email is configured on this deployment, they'll also receive the link by email.
+          </p>
+          <div className="flex justify-end gap-2 mt-5">
+            <button type="button" onClick={onClose} className="ko-btn-ghost h-10 px-4 text-sm">Cancel</button>
+            <button type="submit" disabled={busy || !email} className="ko-btn-primary h-10 px-5 text-sm">{busy ? "Creating…" : "Create invite"}</button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

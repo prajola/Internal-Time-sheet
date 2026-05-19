@@ -199,17 +199,17 @@ export default function AdminTasks() {
             </div>
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
             <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Status</div>
-            <select className="ko-input h-9 w-40" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <select className="ko-input h-9 w-full sm:w-40" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
               <option value="all">All statuses</option>
               {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
             </select>
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
             <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Assignee</div>
-            <select className="ko-input h-9 w-52" value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)}>
+            <select className="ko-input h-9 w-full sm:w-52" value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)}>
               <option value="all">All assignees</option>
               <option value="none">Unassigned</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
@@ -219,7 +219,7 @@ export default function AdminTasks() {
           {activeFilterCount > 0 && (
             <button
               onClick={clearFilters}
-              className="ko-btn-ghost h-9 px-3 text-xs inline-flex items-center gap-1.5 ml-auto"
+              className="ko-btn-ghost h-9 px-3 text-xs inline-flex items-center gap-1.5 w-full sm:w-auto sm:ml-auto justify-center"
             >
               <XCircle size={12} /> Clear all ({activeFilterCount})
             </button>
@@ -228,12 +228,12 @@ export default function AdminTasks() {
 
         {/* Bottom row — date filter (collapsed unless period != all OR explicitly expanded) */}
         <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-end gap-3">
-          <div>
+          <div className="w-full sm:w-auto">
             <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5 inline-flex items-center gap-1.5">
               <CalendarRange size={11} /> By
             </div>
             <select
-              className="ko-input h-9 w-36"
+              className="ko-input h-9 w-full sm:w-36"
               value={dateField}
               onChange={(e) => setDateField(e.target.value as typeof dateField)}
             >
@@ -243,7 +243,7 @@ export default function AdminTasks() {
             </select>
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
             <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Period</div>
             <div className="inline-flex bg-gray-100 rounded-md p-0.5 flex-wrap">
               {([
@@ -278,18 +278,18 @@ export default function AdminTasks() {
           </div>
 
           {period === "custom" && (
-            <div>
+            <div className="w-full sm:w-auto">
               <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Day</div>
               <input
                 type="date"
                 value={customDay}
                 onChange={(e) => setCustomDay(e.target.value)}
-                className="ko-input h-9 w-44"
+                className="ko-input h-9 w-full sm:w-44"
               />
             </div>
           )}
 
-          <div className="ml-auto text-right">
+          <div className="w-full sm:w-auto sm:ml-auto text-left sm:text-right">
             <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Showing</div>
             <div className="font-display text-lg text-gray-900 leading-tight">
               {filtered.length} <span className="text-gray-400 text-sm font-normal">of {tasks.length}</span>

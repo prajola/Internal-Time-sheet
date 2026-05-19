@@ -180,17 +180,17 @@ export default function AdminTimesheets() {
               </div>
             </div>
 
-            <div>
+            <div className="w-full sm:w-auto">
               <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">User</div>
-              <select className="ko-input h-9 w-52" value={userId} onChange={(e) => setUserId(e.target.value)}>
+              <select className="ko-input h-9 w-full sm:w-52" value={userId} onChange={(e) => setUserId(e.target.value)}>
                 <option value="all">All users</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
               </select>
             </div>
 
-            <div>
+            <div className="w-full sm:w-auto">
               <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Task</div>
-              <select className="ko-input h-9 w-56" value={taskId} onChange={(e) => setTaskId(e.target.value)}>
+              <select className="ko-input h-9 w-full sm:w-56" value={taskId} onChange={(e) => setTaskId(e.target.value)}>
                 <option value="all">All tasks</option>
                 <option value="none">No task (general work)</option>
                 {tasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
@@ -198,7 +198,7 @@ export default function AdminTimesheets() {
             </div>
 
             {activeFilterCount > 0 && (
-              <button onClick={clearFilters} className="ko-btn-ghost h-9 px-3 text-xs inline-flex items-center gap-1.5 ml-auto">
+              <button onClick={clearFilters} className="ko-btn-ghost h-9 px-3 text-xs inline-flex items-center gap-1.5 w-full sm:w-auto sm:ml-auto justify-center">
                 <XCircle size={12} /> Clear all ({activeFilterCount})
               </button>
             )}
@@ -236,18 +236,18 @@ export default function AdminTimesheets() {
             </div>
 
             {period === "custom" && (
-              <div>
+              <div className="w-full sm:w-auto">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Day</div>
                 <input
                   type="date"
                   value={customDay}
                   onChange={(e) => setCustomDay(e.target.value)}
-                  className="ko-input h-9 w-44"
+                  className="ko-input h-9 w-full sm:w-44"
                 />
               </div>
             )}
 
-            <div className="ml-auto flex items-end gap-6">
+            <div className="w-full sm:w-auto sm:ml-auto flex items-end gap-6">
               <div className="text-right">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Showing</div>
                 <div className="font-display text-lg text-gray-900 leading-tight">

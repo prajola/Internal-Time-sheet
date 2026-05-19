@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LogOut, LayoutDashboard, ClipboardList, Clock, Users, ListChecks,
-  CalendarRange, Settings2,
+  CalendarRange, Settings2, LifeBuoy,
 } from "lucide-react";
 import { useAuth } from "../lib/auth-context";
 import { NotificationBell } from "./NotificationBell";
@@ -38,6 +38,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             { href: "/users", label: "Users", icon: <Users size={16} /> },
             { href: "/tasks", label: "Tasks", icon: <ListChecks size={16} /> },
             { href: "/timesheets", label: "Timesheets", icon: <CalendarRange size={16} /> },
+            { href: "/queries", label: "Support", icon: <LifeBuoy size={16} /> },
             { href: "/manage", label: "Manage", icon: <Settings2 size={16} /> },
           ],
         },
@@ -49,6 +50,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             { href: "/", label: "Dashboard", icon: <LayoutDashboard size={16} /> },
             { href: "/my-tasks", label: "My Tasks", icon: <ClipboardList size={16} /> },
             { href: "/my-timesheet", label: "My Timesheet", icon: <Clock size={16} /> },
+            { href: "/my-queries", label: "Help & support", icon: <LifeBuoy size={16} /> },
           ],
         },
       ];

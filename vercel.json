@@ -9,7 +9,7 @@
   },
   "rewrites": [
     {
-      "source": "/((?!api|assets|favicon.ico|.*\\.svg|.*\\.png|.*\\.ico).*)",
+      "source": "/((?!api/|@|.*\\.).*)",
       "destination": "/index.html"
     }
   ]

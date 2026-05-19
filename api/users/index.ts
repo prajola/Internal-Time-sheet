@@ -39,6 +39,20 @@ interface CreateBody {
   role?: Role;
 }
 
+/**
+ * Choose the base URL for setup links. Prefer the explicit APP_URL env
+ * var (set in production), otherwise derive from the request itself so
+ * `vercel dev` on localhost generates localhost links rather than the
+ * production-ish placeholder.
+ */
+function appUrlFromRequest(req: VercelRequest): string {
+  const fromEnv = process.env.APP_URL;
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  const proto = (req.headers["x-forwarded-proto"] as string) || "http";
+  const host = (req.headers["x-forwarded-host"] as string) || req.headers.host || "localhost:5050";
+  return `${proto}://${host}`;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
     const me = await requireAuth(req, res);
@@ -74,18 +88,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     await upsertInvitation(inv);
 
-    // Email the invitee a "Set your password" link — single click activates account.
-    const appUrlBase = (process.env.APP_URL || "https://internal-time-sheet.vercel.app").replace(/\/$/, "");
+    // Generate the "Set your password" link. The admin gets it back in
+    // the response so they can copy + share via Slack/WhatsApp/SMS even
+    // when SMTP isn't configured. We still try to email it.
+    const appUrlBase = appUrlFromRequest(req);
     const token = issueSetupToken(e, "setup");
-    const link = `${appUrlBase}/auth/set-password?token=${encodeURIComponent(token)}`;
+    const setupLink = `${appUrlBase}/auth/set-password?token=${encodeURIComponent(token)}`;
     const tpl = passwordSetupEmail({
       to: e,
       name: name || "",
-      link,
+      link: setupLink,
       purpose: "setup",
       invitedBy: admin.name,
     });
-    await sendMail({
+    const mail = await sendMail({
       to: e,
       subject: `${admin.name} invited you to KubeGraf Time Sheet`,
       text: tpl.text,
@@ -105,7 +121,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       byUser: admin,
     });
 
-    return ok(res, { success: true, invitation: { id: inv.id, email: inv.email, role: inv.role } }, 201);
+    return ok(res, {
+      success: true,
+      invitation: { id: inv.id, email: inv.email, role: inv.role },
+      setupLink,
+      emailSent: mail.ok,
+    }, 201);
   }
 
   return methodNotAllowed(res);

@@ -61,12 +61,12 @@ export function Filters({ value, onChange, extra }: Props) {
 
       {v.mode === "day" && (
         <Labeled label="Date">
-          <input type="date" value={v.day || ""} onChange={(e) => update("day", e.target.value)} className="ko-input h-9 w-44" />
+          <input type="date" value={v.day || ""} onChange={(e) => update("day", e.target.value)} className="ko-input h-9 w-full sm:w-44" />
         </Labeled>
       )}
       {v.mode === "month" && (
         <Labeled label="Month">
-          <input type="month" value={v.month || ""} onChange={(e) => update("month", e.target.value)} className="ko-input h-9 w-44" />
+          <input type="month" value={v.month || ""} onChange={(e) => update("month", e.target.value)} className="ko-input h-9 w-full sm:w-44" />
         </Labeled>
       )}
       {v.mode === "year" && (
@@ -76,7 +76,7 @@ export function Filters({ value, onChange, extra }: Props) {
             min={2000} max={2100}
             value={v.year || ""}
             onChange={(e) => update("year", e.target.value)}
-            className="ko-input h-9 w-32"
+            className="ko-input h-9 w-full sm:w-32"
             placeholder="2026"
           />
         </Labeled>
@@ -84,21 +84,21 @@ export function Filters({ value, onChange, extra }: Props) {
       {v.mode === "range" && (
         <>
           <Labeled label="From">
-            <input type="date" value={(v.from || "").slice(0, 10)} onChange={(e) => update("from", e.target.value)} className="ko-input h-9 w-44" />
+            <input type="date" value={(v.from || "").slice(0, 10)} onChange={(e) => update("from", e.target.value)} className="ko-input h-9 w-full sm:w-44" />
           </Labeled>
           <Labeled label="To">
-            <input type="date" value={(v.to || "").slice(0, 10)} onChange={(e) => update("to", e.target.value)} className="ko-input h-9 w-44" />
+            <input type="date" value={(v.to || "").slice(0, 10)} onChange={(e) => update("to", e.target.value)} className="ko-input h-9 w-full sm:w-44" />
           </Labeled>
         </>
       )}
-      {extra ? <div className="ml-auto flex items-end gap-3">{extra}</div> : null}
+      {extra ? <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-end gap-3">{extra}</div> : null}
     </div>
   );
 }
 
 function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className="w-full sm:w-auto">
       <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1">{label}</div>
       {children}
     </div>

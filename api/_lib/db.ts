@@ -1,138 +1,410 @@
 /**
- * Vercel Blob-backed JSON store.
+ * Airtable-backed data layer.
  *
- * Each collection is one blob:
- *   db/users.json         — { users: User[] }
- *   db/tasks.json         — { tasks: Task[] }
- *   db/invitations.json   — { invitations: Invitation[] }
+ * Each entity lives in its own table inside the base configured by
+ * AIRTABLE_BASE_ID, with one row per record. Our own UUIDs live in the
+ * `id` column; we look records up by that column (via filterByFormula)
+ * so the rest of the app can stay UUID-keyed.
  *
- * Time entries are sharded per-user to avoid write contention:
- *   db/time-entries/<userId>.json — { entries: TimeEntry[] }
+ * Performance: Airtable's REST API runs ~300–500ms per call. Functions
+ * here that need a full collection (listUsers, listTasks, listAllEntries)
+ * issue a paginated list request. For an internal team-sized workspace
+ * this is fine; if it ever isn't, the right next step is a real DB.
  *
- * Concurrency: we use a simple read-modify-write per blob. For a
- * small internal team the conflict window is tiny; if it becomes a
- * problem later, switch to per-record blobs (like the book-demo
- * relay's `submissions/` pattern).
+ * Concurrency: per-record PATCH is atomic. saveNotificationsForUser is
+ * the only "replace a set" operation — implemented as diff-and-batch so
+ * it doesn't lose interleaved writes from other code paths the way the
+ * old blob backend did.
  */
-import { list, put } from "@vercel/blob";
-import type { User, Task, Invitation, TimeEntry, Notification } from "./types.js";
+import type { User, Task, Invitation, TimeEntry, Notification, SupportQuery } from "./types.js";
 
-const COLL = {
-  users: "db/users.json",
-  tasks: "db/tasks.json",
-  invitations: "db/invitations.json",
+const TOKEN = process.env.AIRTABLE_TOKEN;
+const BASE = process.env.AIRTABLE_BASE_ID;
+
+const TABLE = {
+  users: "Users",
+  tasks: "Tasks",
+  timeEntries: "TimeEntries",
+  invitations: "Invitations",
+  notifications: "Notifications",
+  queries: "Queries",
 } as const;
 
-const TE_PREFIX = "db/time-entries/";
-const NOTIF_PREFIX = "db/notifications/";
+function api(table: string, path = ""): string {
+  if (!BASE) throw new Error("AIRTABLE_BASE_ID is not set");
+  return `https://api.airtable.com/v0/${BASE}/${encodeURIComponent(table)}${path}`;
+}
 
-// Cap each user's inbox so it doesn't grow unbounded over time. Older
-// records past this count are truncated on every write.
-const NOTIF_PER_USER_CAP = 200;
+function authHeaders(json = false): Record<string, string> {
+  if (!TOKEN) throw new Error("AIRTABLE_TOKEN is not set");
+  const h: Record<string, string> = { Authorization: `Bearer ${TOKEN}` };
+  if (json) h["Content-Type"] = "application/json";
+  return h;
+}
 
-async function readBlob<T>(pathname: string): Promise<T | null> {
-  try {
-    const { blobs } = await list({ prefix: pathname });
-    const found = blobs.find((b) => b.pathname === pathname);
-    if (!found) return null;
-    // Cache-bust at the request layer: `?_=ts` defeats any CDN edge that
-    // might serve a stale copy after our overwrite. Pair this with the
-    // cacheControlMaxAge:0 on put() below — together they give us
-    // read-after-write consistency for our small JSON state.
-    const url = `${found.url}${found.url.includes("?") ? "&" : "?"}_=${Date.now()}`;
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
+/**
+ * Wrap fetch with retry-on-transient-error.
+ *
+ * Airtable occasionally serves 5xx (especially 502/503/504 gateway
+ * blips) and 429 (rate-limit, 5 req/sec/base). Both are safe to retry.
+ * 4xx other than 429 are not retried — they mean we sent something bad.
+ *
+ * Exponential backoff: 300ms, 800ms, 2000ms. Up to 3 retries.
+ */
+async function fetchWithRetry(url: string, init: RequestInit = {}): Promise<Response> {
+  const delays = [300, 800, 2000];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      const r = await fetch(url, init);
+      if (r.ok) return r;
+      if (r.status === 429 || (r.status >= 500 && r.status <= 599)) {
+        if (attempt === delays.length) return r; // Out of retries — let caller see the bad response.
+        const ra = r.headers.get("retry-after");
+        const wait = ra ? Math.min(parseInt(ra, 10) * 1000 || 0, 5000) : delays[attempt];
+        await new Promise((res) => setTimeout(res, wait));
+        continue;
+      }
+      return r; // Non-retryable 4xx — return as-is.
+    } catch (e) {
+      lastErr = e;
+      if (attempt === delays.length) throw e;
+      await new Promise((res) => setTimeout(res, delays[attempt]));
+    }
+  }
+  throw lastErr ?? new Error("fetchWithRetry: unreachable");
+}
+
+/* ── Low-level Airtable helpers ──────────────────────────────── */
+
+interface ListOpts {
+  filterFormula?: string;
+  pageSize?: number;
+}
+
+async function listRecords(table: string, opts: ListOpts = {}): Promise<Array<{ id: string; fields: any }>> {
+  const all: Array<{ id: string; fields: any }> = [];
+  const pageSize = opts.pageSize ?? 100;
+  let offset: string | undefined;
+  do {
+    const qs = new URLSearchParams({ pageSize: String(pageSize) });
+    if (opts.filterFormula) qs.set("filterByFormula", opts.filterFormula);
+    if (offset) qs.set("offset", offset);
+    const r = await fetchWithRetry(`${api(table)}?${qs.toString()}`, { headers: authHeaders() });
+    if (!r.ok) throw new Error(`Airtable list ${table}: HTTP ${r.status} ${await r.text()}`);
+    const data = await r.json();
+    for (const rec of data.records ?? []) all.push({ id: rec.id, fields: rec.fields ?? {} });
+    offset = data.offset;
+  } while (offset);
+  return all;
+}
+
+async function findRecordIdByOurId(table: string, ourId: string): Promise<string | null> {
+  // filterByFormula expects strings escaped — our IDs are hex uuids, no
+  // quotes inside, but escape defensively.
+  const safe = ourId.replace(/'/g, "\\'");
+  const formula = `{id}='${safe}'`;
+  const recs = await listRecords(table, { filterFormula: formula, pageSize: 1 });
+  return recs[0]?.id ?? null;
+}
+
+async function createRecord(table: string, fields: Record<string, any>): Promise<void> {
+  const r = await fetchWithRetry(api(table), {
+    method: "POST",
+    headers: authHeaders(true),
+    body: JSON.stringify({ fields }),
+  });
+  if (!r.ok) throw new Error(`Airtable create ${table}: HTTP ${r.status} ${await r.text()}`);
+}
+
+async function updateRecord(table: string, recId: string, fields: Record<string, any>): Promise<void> {
+  const r = await fetchWithRetry(api(table, `/${recId}`), {
+    method: "PATCH",
+    headers: authHeaders(true),
+    body: JSON.stringify({ fields }),
+  });
+  if (!r.ok) throw new Error(`Airtable update ${table}: HTTP ${r.status} ${await r.text()}`);
+}
+
+async function deleteRecord(table: string, recId: string): Promise<void> {
+  const r = await fetchWithRetry(api(table, `/${recId}`), {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!r.ok) throw new Error(`Airtable delete ${table}: HTTP ${r.status} ${await r.text()}`);
+}
+
+async function deleteRecords(table: string, recIds: string[]): Promise<void> {
+  if (recIds.length === 0) return;
+  // Airtable supports batch delete up to 10 ids per call via repeated `records[]` params.
+  for (let i = 0; i < recIds.length; i += 10) {
+    const slice = recIds.slice(i, i + 10);
+    const qs = slice.map((id) => `records[]=${encodeURIComponent(id)}`).join("&");
+    const r = await fetchWithRetry(`${api(table)}?${qs}`, { method: "DELETE", headers: authHeaders() });
+    if (!r.ok) throw new Error(`Airtable batch delete ${table}: HTTP ${r.status} ${await r.text()}`);
   }
 }
 
-async function writeBlob(pathname: string, data: unknown): Promise<void> {
-  await put(pathname, JSON.stringify(data), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    // Tell Vercel's CDN not to cache — these blobs are mutable state.
-    cacheControlMaxAge: 0,
-  });
+async function upsertByOurId(table: string, ourId: string, fields: Record<string, any>): Promise<void> {
+  const recId = await findRecordIdByOurId(table, ourId);
+  if (recId) await updateRecord(table, recId, fields);
+  else await createRecord(table, fields);
+}
+
+/* ── Codecs (object ↔ Airtable fields) ───────────────────────── */
+// Airtable returns missing/empty text fields as undefined. Defensive
+// coalescing keeps the app's typed shapes intact.
+
+function userToFields(u: User): Record<string, any> {
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name ?? "",
+    role: u.role,
+    active: u.active === true,
+    createdAt: u.createdAt ?? "",
+    passwordHash: u.passwordHash ?? "",
+    passwordSetAt: u.passwordSetAt ?? "",
+    sessionsRevokedAt: u.sessionsRevokedAt ?? "",
+    invitedBy: u.invitedBy ?? "",
+  };
+}
+function userFromFields(f: any): User {
+  return {
+    id: f.id,
+    email: f.email,
+    name: f.name ?? "",
+    role: f.role,
+    active: f.active === true,
+    createdAt: f.createdAt,
+    invitedBy: f.invitedBy || undefined,
+    passwordHash: f.passwordHash || null,
+    passwordSetAt: f.passwordSetAt || null,
+    sessionsRevokedAt: f.sessionsRevokedAt || null,
+  };
+}
+
+function taskToFields(t: Task): Record<string, any> {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? "",
+    assigneeId: t.assigneeId ?? "",
+    status: t.status,
+    priority: t.priority,
+    dueDate: t.dueDate ?? "",
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    createdBy: t.createdBy,
+  };
+}
+function taskFromFields(f: any): Task {
+  return {
+    id: f.id,
+    title: f.title ?? "",
+    description: f.description ?? "",
+    assigneeId: f.assigneeId || null,
+    status: f.status,
+    priority: f.priority,
+    dueDate: f.dueDate || null,
+    createdAt: f.createdAt,
+    updatedAt: f.updatedAt,
+    createdBy: f.createdBy,
+  };
+}
+
+function entryToFields(e: TimeEntry): Record<string, any> {
+  return {
+    id: e.id,
+    userId: e.userId,
+    taskId: e.taskId ?? "",
+    description: e.description ?? "",
+    startedAt: e.startedAt,
+    endedAt: e.endedAt ?? "",
+    durationMinutes: e.durationMinutes ?? 0,
+    createdAt: e.createdAt,
+    updatedAt: e.updatedAt,
+  };
+}
+function entryFromFields(f: any): TimeEntry {
+  return {
+    id: f.id,
+    userId: f.userId,
+    taskId: f.taskId || null,
+    description: f.description ?? "",
+    startedAt: f.startedAt,
+    endedAt: f.endedAt || null,
+    durationMinutes: typeof f.durationMinutes === "number" ? f.durationMinutes : 0,
+    createdAt: f.createdAt,
+    updatedAt: f.updatedAt,
+  };
+}
+
+function invitationToFields(i: Invitation): Record<string, any> {
+  return {
+    id: i.id,
+    email: i.email,
+    role: i.role,
+    invitedBy: i.invitedBy,
+    createdAt: i.createdAt,
+    expiresAt: i.expiresAt,
+    acceptedAt: i.acceptedAt ?? "",
+  };
+}
+function invitationFromFields(f: any): Invitation {
+  return {
+    id: f.id,
+    email: f.email,
+    role: f.role,
+    invitedBy: f.invitedBy,
+    createdAt: f.createdAt,
+    expiresAt: f.expiresAt,
+    acceptedAt: f.acceptedAt || undefined,
+  };
+}
+
+function notificationToFields(n: Notification): Record<string, any> {
+  return {
+    id: n.id,
+    userId: n.userId,
+    kind: n.kind,
+    title: n.title,
+    body: n.body ?? "",
+    link: n.link ?? "",
+    taskId: n.taskId ?? "",
+    fromUserId: n.fromUserId ?? "",
+    fromUserName: n.fromUserName ?? "",
+    readAt: n.readAt ?? "",
+    createdAt: n.createdAt,
+  };
+}
+function notificationFromFields(f: any): Notification {
+  return {
+    id: f.id,
+    userId: f.userId,
+    kind: f.kind,
+    title: f.title ?? "",
+    body: f.body ?? "",
+    link: f.link || null,
+    taskId: f.taskId || null,
+    fromUserId: f.fromUserId || null,
+    fromUserName: f.fromUserName || null,
+    readAt: f.readAt || null,
+    createdAt: f.createdAt,
+  };
+}
+
+function queryToFields(q: SupportQuery): Record<string, any> {
+  return {
+    id: q.id,
+    userId: q.userId,
+    userName: q.userName ?? "",
+    userEmail: q.userEmail ?? "",
+    category: q.category,
+    subject: q.subject,
+    body: q.body ?? "",
+    status: q.status,
+    taskId: q.taskId ?? "",
+    createdAt: q.createdAt,
+    updatedAt: q.updatedAt,
+    adminResponse: q.adminResponse ?? "",
+    respondedAt: q.respondedAt ?? "",
+    respondedBy: q.respondedBy ?? "",
+    respondedByName: q.respondedByName ?? "",
+  };
+}
+function queryFromFields(f: any): SupportQuery {
+  return {
+    id: f.id,
+    userId: f.userId,
+    userName: f.userName ?? "",
+    userEmail: f.userEmail ?? "",
+    category: f.category,
+    subject: f.subject ?? "",
+    body: f.body ?? "",
+    status: f.status,
+    taskId: f.taskId || null,
+    createdAt: f.createdAt,
+    updatedAt: f.updatedAt,
+    adminResponse: f.adminResponse ?? "",
+    respondedAt: f.respondedAt || null,
+    respondedBy: f.respondedBy || null,
+    respondedByName: f.respondedByName || null,
+  };
 }
 
 /* ── Users ───────────────────────────────────────────────────── */
 
 export async function listUsers(): Promise<User[]> {
-  const data = await readBlob<{ users: User[] }>(COLL.users);
-  return data?.users ?? [];
-}
-export async function saveUsers(users: User[]): Promise<void> {
-  await writeBlob(COLL.users, { users });
+  const recs = await listRecords(TABLE.users);
+  return recs.map((r) => userFromFields(r.fields));
 }
 export async function findUserByEmail(email: string): Promise<User | null> {
-  const e = email.trim().toLowerCase();
-  const users = await listUsers();
-  return users.find((u) => u.email === e) ?? null;
+  const e = email.trim().toLowerCase().replace(/'/g, "\\'");
+  const recs = await listRecords(TABLE.users, {
+    filterFormula: `LOWER({email})='${e}'`,
+    pageSize: 1,
+  });
+  return recs[0] ? userFromFields(recs[0].fields) : null;
 }
 export async function findUserById(id: string): Promise<User | null> {
-  const users = await listUsers();
-  return users.find((u) => u.id === id) ?? null;
+  const recId = await findRecordIdByOurId(TABLE.users, id);
+  if (!recId) return null;
+  // Re-fetch this single record's fields cheaply.
+  const r = await fetchWithRetry(api(TABLE.users, `/${recId}`), { headers: authHeaders() });
+  if (!r.ok) return null;
+  const data = await r.json();
+  return userFromFields(data.fields ?? {});
 }
 export async function upsertUser(u: User): Promise<void> {
-  const users = await listUsers();
-  const i = users.findIndex((x) => x.id === u.id);
-  if (i === -1) users.push(u);
-  else users[i] = u;
-  await saveUsers(users);
+  await upsertByOurId(TABLE.users, u.id, userToFields(u));
 }
 export async function removeUser(id: string): Promise<void> {
-  const users = await listUsers();
-  await saveUsers(users.filter((u) => u.id !== id));
+  const recId = await findRecordIdByOurId(TABLE.users, id);
+  if (recId) await deleteRecord(TABLE.users, recId);
 }
 
 /**
- * Hard-delete a user: removes the user record AND their time-entry shard.
+ * Hard-delete a user: remove their row and wipe their time entries.
  * Tasks they own/created/are assigned to are left in place; admin can
  * reassign or delete those separately.
  */
 export async function removeUserHard(id: string): Promise<void> {
   await removeUser(id);
-  // Best-effort: wipe their entries by writing an empty shard.
-  await saveEntriesForUser(id, []);
+  // Wipe their entries
+  const entries = await listRecords(TABLE.timeEntries, {
+    filterFormula: `{userId}='${id.replace(/'/g, "\\'")}'`,
+  });
+  await deleteRecords(TABLE.timeEntries, entries.map((e) => e.id));
 }
 
 /* ── Tasks ───────────────────────────────────────────────────── */
 
 export async function listTasks(): Promise<Task[]> {
-  const data = await readBlob<{ tasks: Task[] }>(COLL.tasks);
-  return data?.tasks ?? [];
-}
-export async function saveTasks(tasks: Task[]): Promise<void> {
-  await writeBlob(COLL.tasks, { tasks });
+  const recs = await listRecords(TABLE.tasks);
+  return recs.map((r) => taskFromFields(r.fields));
 }
 export async function findTask(id: string): Promise<Task | null> {
-  const tasks = await listTasks();
-  return tasks.find((t) => t.id === id) ?? null;
+  const recId = await findRecordIdByOurId(TABLE.tasks, id);
+  if (!recId) return null;
+  const r = await fetchWithRetry(api(TABLE.tasks, `/${recId}`), { headers: authHeaders() });
+  if (!r.ok) return null;
+  const data = await r.json();
+  return taskFromFields(data.fields ?? {});
 }
 export async function upsertTask(t: Task): Promise<void> {
-  const tasks = await listTasks();
-  const i = tasks.findIndex((x) => x.id === t.id);
-  if (i === -1) tasks.push(t);
-  else tasks[i] = t;
-  await saveTasks(tasks);
+  await upsertByOurId(TABLE.tasks, t.id, taskToFields(t));
 }
 export async function removeTask(id: string): Promise<void> {
-  const tasks = await listTasks();
-  await saveTasks(tasks.filter((t) => t.id !== id));
+  const recId = await findRecordIdByOurId(TABLE.tasks, id);
+  if (recId) await deleteRecord(TABLE.tasks, recId);
 }
 
 /* ── Invitations ─────────────────────────────────────────────── */
 
 export async function listInvitations(): Promise<Invitation[]> {
-  const data = await readBlob<{ invitations: Invitation[] }>(COLL.invitations);
-  return data?.invitations ?? [];
-}
-export async function saveInvitations(invitations: Invitation[]): Promise<void> {
-  await writeBlob(COLL.invitations, { invitations });
+  const recs = await listRecords(TABLE.invitations);
+  return recs.map((r) => invitationFromFields(r.fields));
 }
 export async function findInvitationByEmail(email: string): Promise<Invitation | null> {
   const e = email.trim().toLowerCase();
@@ -146,85 +418,170 @@ export async function findInvitationByEmail(email: string): Promise<Invitation |
   );
 }
 export async function upsertInvitation(inv: Invitation): Promise<void> {
-  const all = await listInvitations();
-  const idx = all.findIndex((x) => x.id === inv.id);
-  if (idx === -1) all.push(inv);
-  else all[idx] = inv;
-  await saveInvitations(all);
+  await upsertByOurId(TABLE.invitations, inv.id, invitationToFields(inv));
 }
 
-/* ── Time entries (sharded per user) ────────────────────────── */
+/* ── Time entries ────────────────────────────────────────────── */
 
 export async function listEntriesForUser(userId: string): Promise<TimeEntry[]> {
-  const data = await readBlob<{ entries: TimeEntry[] }>(`${TE_PREFIX}${userId}.json`);
-  return data?.entries ?? [];
-}
-export async function saveEntriesForUser(userId: string, entries: TimeEntry[]): Promise<void> {
-  await writeBlob(`${TE_PREFIX}${userId}.json`, { entries });
+  const safe = userId.replace(/'/g, "\\'");
+  const recs = await listRecords(TABLE.timeEntries, {
+    filterFormula: `{userId}='${safe}'`,
+  });
+  return recs.map((r) => entryFromFields(r.fields));
 }
 export async function upsertEntry(entry: TimeEntry): Promise<TimeEntry[]> {
-  const list = await listEntriesForUser(entry.userId);
-  const idx = list.findIndex((e) => e.id === entry.id);
-  if (idx === -1) list.push(entry);
-  else list[idx] = entry;
-  await saveEntriesForUser(entry.userId, list);
-  return list;
+  await upsertByOurId(TABLE.timeEntries, entry.id, entryToFields(entry));
+  return listEntriesForUser(entry.userId);
 }
-export async function removeEntry(userId: string, entryId: string): Promise<void> {
-  const list = await listEntriesForUser(userId);
-  await saveEntriesForUser(userId, list.filter((e) => e.id !== entryId));
+export async function removeEntry(_userId: string, entryId: string): Promise<void> {
+  const recId = await findRecordIdByOurId(TABLE.timeEntries, entryId);
+  if (recId) await deleteRecord(TABLE.timeEntries, recId);
 }
 
-/* ── Notifications (sharded per recipient) ──────────────────── */
+/** Admin: list entries across all users. */
+export async function listAllEntries(): Promise<TimeEntry[]> {
+  const recs = await listRecords(TABLE.timeEntries);
+  return recs.map((r) => entryFromFields(r.fields));
+}
+
+/* ── Notifications ───────────────────────────────────────────── */
+
+const NOTIF_PER_USER_CAP = 200;
 
 export async function listNotificationsForUser(userId: string): Promise<Notification[]> {
-  const data = await readBlob<{ items: Notification[] }>(`${NOTIF_PREFIX}${userId}.json`);
-  return data?.items ?? [];
+  const safe = userId.replace(/'/g, "\\'");
+  const recs = await listRecords(TABLE.notifications, {
+    filterFormula: `{userId}='${safe}'`,
+  });
+  const items = recs.map((r) => notificationFromFields(r.fields));
+  // Sort newest first (Airtable doesn't guarantee order across pages)
+  items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  return items;
 }
 
+/**
+ * Replace a user's notification list with `items` (capped at NOTIF_PER_USER_CAP).
+ * Diff against existing rows: update changed, delete dropped, insert new.
+ */
 export async function saveNotificationsForUser(userId: string, items: Notification[]): Promise<void> {
-  // Keep the inbox bounded — drop the oldest beyond the cap.
-  const trimmed = items.length > NOTIF_PER_USER_CAP
-    ? items.slice(0, NOTIF_PER_USER_CAP)
-    : items;
-  await writeBlob(`${NOTIF_PREFIX}${userId}.json`, { items: trimmed });
+  const safe = userId.replace(/'/g, "\\'");
+  const existing = await listRecords(TABLE.notifications, {
+    filterFormula: `{userId}='${safe}'`,
+  });
+  const existingByOurId = new Map<string, { recId: string; fields: any }>();
+  for (const r of existing) existingByOurId.set(r.fields.id, { recId: r.id, fields: r.fields });
+
+  const trimmed = items.length > NOTIF_PER_USER_CAP ? items.slice(0, NOTIF_PER_USER_CAP) : items;
+  const wantedIds = new Set(trimmed.map((n) => n.id));
+
+  // Deletes — rows present in Airtable but not in the new list.
+  const toDelete = [...existingByOurId.entries()]
+    .filter(([id]) => !wantedIds.has(id))
+    .map(([, v]) => v.recId);
+  await deleteRecords(TABLE.notifications, toDelete);
+
+  // Upserts — create new, update existing only if fields changed.
+  for (const n of trimmed) {
+    const fields = notificationToFields(n);
+    const ex = existingByOurId.get(n.id);
+    if (!ex) {
+      await createRecord(TABLE.notifications, fields);
+    } else {
+      // Cheap structural compare — skip update when nothing changed.
+      const same = Object.entries(fields).every(([k, v]) => (ex.fields[k] ?? "") === (v ?? ""));
+      if (!same) await updateRecord(TABLE.notifications, ex.recId, fields);
+    }
+  }
 }
 
-/** Insert a fresh notification at the head of the recipient's inbox. */
 export async function pushNotification(n: Notification): Promise<void> {
-  const list = await listNotificationsForUser(n.userId);
-  list.unshift(n);
-  await saveNotificationsForUser(n.userId, list);
+  // Just append — no need to diff. Cap enforcement happens on the next
+  // saveNotificationsForUser call from /api/notifications.
+  await createRecord(TABLE.notifications, notificationToFields(n));
 }
 
 export async function updateNotification(userId: string, id: string, patch: Partial<Notification>): Promise<Notification | null> {
   const list = await listNotificationsForUser(userId);
   const idx = list.findIndex((n) => n.id === id);
   if (idx === -1) return null;
-  list[idx] = { ...list[idx], ...patch };
-  await saveNotificationsForUser(userId, list);
-  return list[idx];
+  const next = { ...list[idx], ...patch };
+  await upsertByOurId(TABLE.notifications, id, notificationToFields(next));
+  return next;
 }
 
-export async function removeNotification(userId: string, id: string): Promise<void> {
-  const list = await listNotificationsForUser(userId);
-  await saveNotificationsForUser(userId, list.filter((n) => n.id !== id));
+export async function removeNotification(_userId: string, id: string): Promise<void> {
+  const recId = await findRecordIdByOurId(TABLE.notifications, id);
+  if (recId) await deleteRecord(TABLE.notifications, recId);
 }
 
-/** Admin: list entries across all users. Use with care — O(users) reads. */
-export async function listAllEntries(): Promise<TimeEntry[]> {
-  const { blobs } = await list({ prefix: TE_PREFIX });
-  const results = await Promise.all(
-    blobs.map(async (b) => {
-      try {
-        const res = await fetch(b.url, { cache: "no-store" });
-        if (!res.ok) return [] as TimeEntry[];
-        const json = (await res.json()) as { entries: TimeEntry[] };
-        return json.entries ?? [];
-      } catch {
-        return [] as TimeEntry[];
-      }
-    }),
-  );
-  return results.flat();
+/* ── Compat shims (kept for callers that still use bulk save) ─ */
+// These were heavily used by the old blob backend; the rewrite leaves
+// them in for any straggler import. Each translates a "replace whole
+// collection" into a per-record diff.
+
+export async function saveUsers(users: User[]): Promise<void> {
+  const existing = await listRecords(TABLE.users);
+  const existingByOurId = new Map(existing.map((r) => [r.fields.id, r]));
+  const wanted = new Set(users.map((u) => u.id));
+  await deleteRecords(TABLE.users, [...existingByOurId].filter(([id]) => !wanted.has(id)).map(([, r]) => r.id));
+  for (const u of users) await upsertByOurId(TABLE.users, u.id, userToFields(u));
+}
+
+export async function saveTasks(tasks: Task[]): Promise<void> {
+  const existing = await listRecords(TABLE.tasks);
+  const existingByOurId = new Map(existing.map((r) => [r.fields.id, r]));
+  const wanted = new Set(tasks.map((t) => t.id));
+  await deleteRecords(TABLE.tasks, [...existingByOurId].filter(([id]) => !wanted.has(id)).map(([, r]) => r.id));
+  for (const t of tasks) await upsertByOurId(TABLE.tasks, t.id, taskToFields(t));
+}
+
+export async function saveInvitations(invitations: Invitation[]): Promise<void> {
+  const existing = await listRecords(TABLE.invitations);
+  const existingByOurId = new Map(existing.map((r) => [r.fields.id, r]));
+  const wanted = new Set(invitations.map((i) => i.id));
+  await deleteRecords(TABLE.invitations, [...existingByOurId].filter(([id]) => !wanted.has(id)).map(([, r]) => r.id));
+  for (const i of invitations) await upsertByOurId(TABLE.invitations, i.id, invitationToFields(i));
+}
+
+export async function saveEntriesForUser(userId: string, entries: TimeEntry[]): Promise<void> {
+  const safe = userId.replace(/'/g, "\\'");
+  const existing = await listRecords(TABLE.timeEntries, { filterFormula: `{userId}='${safe}'` });
+  const existingByOurId = new Map(existing.map((r) => [r.fields.id, r]));
+  const wanted = new Set(entries.map((e) => e.id));
+  await deleteRecords(TABLE.timeEntries, [...existingByOurId].filter(([id]) => !wanted.has(id)).map(([, r]) => r.id));
+  for (const e of entries) await upsertByOurId(TABLE.timeEntries, e.id, entryToFields(e));
+}
+
+/* ── Queries (support tickets) ───────────────────────────────── */
+
+export async function listQueries(): Promise<SupportQuery[]> {
+  const recs = await listRecords(TABLE.queries);
+  const out = recs.map((r) => queryFromFields(r.fields));
+  out.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  return out;
+}
+export async function listQueriesForUser(userId: string): Promise<SupportQuery[]> {
+  const safe = userId.replace(/'/g, "\\'");
+  const recs = await listRecords(TABLE.queries, {
+    filterFormula: `{userId}='${safe}'`,
+  });
+  const out = recs.map((r) => queryFromFields(r.fields));
+  out.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  return out;
+}
+export async function findQuery(id: string): Promise<SupportQuery | null> {
+  const recId = await findRecordIdByOurId(TABLE.queries, id);
+  if (!recId) return null;
+  const r = await fetchWithRetry(api(TABLE.queries, `/${recId}`), { headers: authHeaders() });
+  if (!r.ok) return null;
+  const data = await r.json();
+  return queryFromFields(data.fields ?? {});
+}
+export async function upsertQuery(q: SupportQuery): Promise<void> {
+  await upsertByOurId(TABLE.queries, q.id, queryToFields(q));
+}
+export async function removeQuery(id: string): Promise<void> {
+  const recId = await findRecordIdByOurId(TABLE.queries, id);
+  if (recId) await deleteRecord(TABLE.queries, recId);
 }

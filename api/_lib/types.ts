@@ -78,7 +78,10 @@ export type NotificationKind =
   | "account-password-reset"
   | "account-force-signout"
   | "clock-in"
-  | "clock-out";
+  | "clock-out"
+  | "query-raised"
+  | "query-responded"
+  | "query-status-changed";
 
 export interface Notification {
   id: string;
@@ -92,6 +95,38 @@ export interface Notification {
   fromUserName?: string | null;
   readAt?: string | null;  // ISO; null = unread
   createdAt: string;       // ISO
+}
+
+/**
+ * Support query / help ticket raised by an employee.
+ *
+ * Employees create these from the "Raise a query" form (anything from
+ * "can't log in" to "this task is blocked"). Admins see the full inbox
+ * across all users, can change status, and post a single response.
+ *
+ * Kept deliberately simple — one round-trip Q+A (no chat thread). If
+ * back-and-forth is needed, the employee raises a new query and links
+ * to the prior one in the body.
+ */
+export type QueryCategory = "PORTAL" | "TECHNICAL" | "TASK" | "OTHER";
+export type QueryStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+
+export interface SupportQuery {
+  id: string;
+  userId: string;                // who raised it
+  userName: string;              // cached for display so the admin list doesn't have to join
+  userEmail: string;             // cached for display
+  category: QueryCategory;
+  subject: string;
+  body: string;
+  status: QueryStatus;
+  taskId: string | null;         // optional link to a related task
+  createdAt: string;
+  updatedAt: string;
+  adminResponse: string;         // empty until admin responds
+  respondedAt: string | null;
+  respondedBy: string | null;    // admin userId
+  respondedByName: string | null;
 }
 
 /** Session payload signed into the cookie JWT. */

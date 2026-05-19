@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    try { await api.post("/api/auth/logout", {}); } catch { /* noop */ }
+    try { await api.del("/api/auth/me"); } catch { /* noop */ }
     userSetExplicitlyRef.current = true;
     _setUser(null);
     // Hard-navigate to /login so the entire app state (including any

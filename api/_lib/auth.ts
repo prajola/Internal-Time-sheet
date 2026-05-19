@@ -21,8 +21,13 @@ const SETUP_TTL = "24h";
 
 function secret(): Secret {
   const s = process.env.JWT_SECRET;
-  if (!s) throw new Error("JWT_SECRET is not set");
-  return s;
+  if (s) return s;
+  // Dev fallback so local sign-in works without a configured secret.
+  // Production must set JWT_SECRET explicitly.
+  if (process.env.VERCEL_ENV === "production") {
+    throw new Error("JWT_SECRET is not set");
+  }
+  return "dev-only-insecure-secret-do-not-use-in-prod";
 }
 
 /**

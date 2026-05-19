@@ -393,7 +393,7 @@ export default function AdminManage() {
               />
             </div>
           </div>
-          <div className="max-h-[640px] overflow-y-auto">
+          <div className="max-h-[360px] lg:max-h-[640px] overflow-y-auto">
             {filtered.length === 0 ? (
               <div className="px-4 py-6 text-sm text-gray-500 text-center">No users match.</div>
             ) : (
