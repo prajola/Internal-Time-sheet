@@ -2,11 +2,18 @@
 /**
  * End-to-end smoke test against http://localhost:5050.
  *
- *   node scripts/smoke-test.mjs
+ *   SMOKE_ALLOW_WIPE=1 node --env-file=.env.local scripts/smoke-test.mjs
  *
- * Wipes ~/.kubegraf-timesheet/storage before running so we start
- * from a known state. Re-creates the bootstrap admin (prajol@kubegraf.io)
- * and an employee (alice@kubegraf.io) and runs through every major flow.
+ * ⚠️  DESTRUCTIVE: deletes every row from every Airtable table in the
+ *     base configured by AIRTABLE_BASE_ID before running. Will refuse
+ *     to run unless SMOKE_ALLOW_WIPE=1 is set in the environment, to
+ *     prevent accidentally wiping production data.
+ *
+ * If your dev .env.local points at the SAME Airtable base as
+ * production (the default when you run `vercel env pull`), running
+ * this test will wipe your production data. Either create a separate
+ * "dev" base and point dev at that, or treat this test as a deliberate
+ * "I want to reset everything" tool only.
  *
  * Reports pass/fail per step; never throws; always exits 0/1.
  */
@@ -93,7 +100,21 @@ async function expect(label, fn) {
 }
 
 async function main() {
+  if (process.env.SMOKE_ALLOW_WIPE !== "1") {
+    console.error("ERROR: scripts/smoke-test.mjs wipes ALL Airtable rows in the configured base.");
+    console.error("Refusing to run without an explicit opt-in to avoid destroying prod data.");
+    console.error("");
+    console.error("If you really want to run it (e.g. against a dev-only base), set the");
+    console.error("environment variable SMOKE_ALLOW_WIPE=1, like so:");
+    console.error("");
+    console.error("  SMOKE_ALLOW_WIPE=1 node --env-file=.env.local scripts/smoke-test.mjs");
+    console.error("");
+    console.error("Current target Airtable base:", AIRTABLE_BASE_ID || "(unset)");
+    process.exit(2);
+  }
+
   console.log(`Target: ${BASE}`);
+  console.log(`Airtable base to wipe: ${AIRTABLE_BASE_ID}`);
   console.log("Wiping Airtable tables for a clean slate…");
   await wipeAirtable();
 

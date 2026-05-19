@@ -92,8 +92,17 @@ Open http://localhost:5050.
 To verify the API end-to-end after a change:
 
 ```sh
-node --env-file=.env.local scripts/smoke-test.mjs
+SMOKE_ALLOW_WIPE=1 node --env-file=.env.local scripts/smoke-test.mjs
 ```
 
-⚠️ Smoke test **wipes all Airtable rows** before running. Don't run it
-against a base that has real data.
+⚠️ **The smoke test deletes every row from every Airtable table in
+the configured base before running.** It refuses to run without the
+explicit `SMOKE_ALLOW_WIPE=1` env var to prevent accidents — but if
+your dev `.env.local` points at the same Airtable base as production
+(which is the default after `vercel env pull`), the wipe will hit
+production data.
+
+**Best practice:** create a separate "dev" Airtable base, copy its
+ID into `.env.local` as `AIRTABLE_BASE_ID`, run `node --env-file=.env.local
+scripts/setup-airtable.mjs` to create the schema there, and run the
+smoke test against that. Production stays untouched.
