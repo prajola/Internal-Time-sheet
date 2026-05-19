@@ -674,8 +674,7 @@ export default function AdminManage() {
                           </div>
                           <span className="font-mono text-sm font-semibold text-brand-700">{fmtMinutes(group.total)}</span>
                         </div>
-                        <table className="ko-table">
-                          <thead>
+                        <div className="ko-table-scroll"><table className="ko-table"><thead>
                             <tr>
                               <th>Clock in</th>
                               <th>Clock out</th>
@@ -695,8 +694,7 @@ export default function AdminManage() {
                                 <td className="text-gray-600">{e.description || "—"}</td>
                               </tr>
                             ))}
-                          </tbody>
-                        </table>
+                          </tbody></table></div>
                       </div>
                     ))
                   )}
@@ -871,8 +869,7 @@ function TasksTable(props: {
       {props.tasks.length === 0 ? (
         <div className="px-4 py-6 text-sm text-gray-500 text-center">Nothing here.</div>
       ) : (
-        <table className="ko-table">
-          <thead>
+        <div className="ko-table-scroll"><table className="ko-table"><thead>
             <tr>
               <th>Title</th>
               {props.showAssignee && <th>Assignee</th>}
@@ -899,8 +896,7 @@ function TasksTable(props: {
                 <td className="text-gray-500">{fmtDate(t.createdAt)}</td>
               </tr>
             ))}
-          </tbody>
-        </table>
+          </tbody></table></div>
       )}
     </div>
   );
@@ -1347,8 +1343,7 @@ function buildUserReportHtml(
         ${days
           .map(([d, min]) => `<tr><td>${escHtml(new Date(d + "T00:00:00").toDateString())}</td><td class="num">${(min / 60).toFixed(2)}</td><td class="num">${escHtml(minutesShort(min))}</td></tr>`)
           .join("")}
-        </tbody>
-      </table>`}
+        </tbody></table></div>`}
 
   <h2>Time entries (${entries.length})</h2>
   ${entries.length === 0
@@ -1372,8 +1367,7 @@ function buildUserReportHtml(
             <td>${escHtml(e.description || "")}</td>
           </tr>`;
         }).join("")}
-        </tbody>
-      </table>`}
+        </tbody></table></div>`}
 
   <h2>Tasks assigned (${tasksAssigned.length})</h2>
   ${tasksAssigned.length === 0
@@ -1391,8 +1385,7 @@ function buildUserReportHtml(
             <td>${escHtml(creator?.email || "—")}</td>
           </tr>`;
         }).join("")}
-        </tbody>
-      </table>`}
+        </tbody></table></div>`}
 
   <h2>Tasks created by ${escHtml(user.name || user.email)} (${tasksCreated.length})</h2>
   ${tasksCreated.length === 0
@@ -1410,8 +1403,7 @@ function buildUserReportHtml(
             <td>${escHtml(t.dueDate || "—")}</td>
           </tr>`;
         }).join("")}
-        </tbody>
-      </table>`}
+        </tbody></table></div>`}
 
   <div class="foot">
     KubeGraf · Internal use only · Confidential

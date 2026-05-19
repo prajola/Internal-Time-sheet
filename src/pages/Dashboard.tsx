@@ -311,8 +311,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="ko-card overflow-hidden">
-            <table className="ko-table">
-              <thead>
+            <div className="ko-table-scroll"><table className="ko-table"><thead>
                 <tr>
                   <th>Started</th>
                   <th>Ended</th>
@@ -329,8 +328,7 @@ export default function Dashboard() {
                     <td className="text-gray-600">{e.description || <span className="text-gray-400">—</span>}</td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
+              </tbody></table></div>
           </div>
         )}
       </section>

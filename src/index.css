@@ -152,14 +152,29 @@ textarea:focus-visible {
 
   /* Headings */
   .ko-h1 {
-    @apply font-display text-[28px] md:text-[32px] font-semibold tracking-tight text-gray-900;
+    @apply font-display text-[24px] md:text-[32px] font-semibold tracking-tight text-gray-900;
     letter-spacing: -0.02em;
   }
   .ko-h2 {
-    @apply font-display text-xl font-semibold tracking-tight text-gray-900;
+    @apply font-display text-lg md:text-xl font-semibold tracking-tight text-gray-900;
   }
   .ko-eyebrow {
     @apply text-[11px] uppercase tracking-[0.16em] text-gray-500 font-medium;
+  }
+
+  /* Tables that may overflow on narrow viewports — wrap with this so the
+     card keeps its rounded corners but the table can scroll horizontally. */
+  .ko-table-scroll {
+    @apply overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ko-table-scroll .ko-table {
+    @apply min-w-[640px];
+  }
+
+  /* Modal dialog body — should fit within the viewport on mobile. */
+  .ko-modal-body {
+    @apply max-h-[88vh] overflow-y-auto;
   }
 }
 

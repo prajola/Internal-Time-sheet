@@ -80,8 +80,7 @@ export default function MyTimesheet() {
         </div>
       ) : (
         <div className="ko-card overflow-hidden">
-          <table className="ko-table">
-            <thead>
+          <div className="ko-table-scroll"><table className="ko-table"><thead>
               <tr>
                 <th>Started</th>
                 <th>Ended</th>
@@ -109,8 +108,7 @@ export default function MyTimesheet() {
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+            </tbody></table></div>
         </div>
       )}
 
@@ -168,7 +166,7 @@ function EntryDialog({ entry, tasks, onClose, onSaved }: DialogProps) {
 
   return (
     <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
-      <div className="ko-card-glow p-6 w-full max-w-lg">
+      <div className="ko-card-glow p-6 w-full max-w-lg ko-modal-body">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">{entry ? "Edit time entry" : "New time entry"}</h2>
           <button className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>

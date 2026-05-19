@@ -297,8 +297,7 @@ export default function AdminUsers() {
         </div>
       ) : (
         <div className="ko-card overflow-hidden">
-          <table className="ko-table">
-            <thead>
+          <div className="ko-table-scroll"><table className="ko-table"><thead>
               <tr>
                 <th>Name</th>
                 <th>Email</th>
@@ -333,8 +332,7 @@ export default function AdminUsers() {
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+            </tbody></table></div>
         </div>
       )}
 
@@ -372,7 +370,7 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
 
   return (
     <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
-      <form onSubmit={submit} className="ko-card-glow p-6 w-full max-w-md">
+      <form onSubmit={submit} className="ko-card-glow p-6 w-full max-w-md ko-modal-body">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">Invite user</h2>
           <button type="button" className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>

@@ -99,7 +99,7 @@ export function SetPasswordDialog({ user, onClose, onSaved, onSuccessToast, onEr
 
   return (
     <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
-      <form onSubmit={submit} className="ko-card-elevated p-6 w-full max-w-md">
+      <form onSubmit={submit} className="ko-card-elevated p-6 w-full max-w-md ko-modal-body">
         <div className="flex justify-between items-start mb-4 gap-3">
           <div>
             <h2 className="font-display text-xl text-gray-900">Set a new password</h2>

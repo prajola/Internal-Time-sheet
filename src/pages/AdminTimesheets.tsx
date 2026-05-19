@@ -302,8 +302,7 @@ export default function AdminTimesheets() {
         </div>
       ) : (
         <div className="ko-card overflow-hidden">
-          <table className="ko-table">
-            <thead>
+          <div className="ko-table-scroll"><table className="ko-table"><thead>
               <tr>
                 <th>User</th>
                 <th>Task</th>
@@ -328,8 +327,7 @@ export default function AdminTimesheets() {
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
+            </tbody></table></div>
         </div>
       )}
     </div>
