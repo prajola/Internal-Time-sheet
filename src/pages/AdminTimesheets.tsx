@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Download, CalendarRange, Clock, Search as SearchIcon, XCircle, Filter,
+  Check, CheckCheck,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "../components/Toast";
@@ -13,8 +14,9 @@ import type { Task, TimeEntry, User } from "../types";
 type Period = "all" | "today" | "week" | "month" | "year" | "custom";
 
 export default function AdminTimesheets() {
-  const { err } = useToast();
+  const { err, ok: okToast } = useToast();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [acking, setAcking] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,6 +117,19 @@ export default function AdminTimesheets() {
     setTaskId("all");
     setPeriod("all");
     setCustomDay("");
+  }
+
+  async function acknowledge(entryId: string, which: "clock-in" | "clock-out") {
+    setAcking(entryId + ":" + which);
+    try {
+      const r = await api.patch<{ entry: TimeEntry }>(`/api/time-entries/${entryId}`, { ack: which });
+      setEntries((prev) => prev.map((x) => (x.id === entryId ? r.entry : x)));
+      okToast(which === "clock-in" ? "Clock-in acknowledged" : "Clock-out acknowledged");
+    } catch (e: any) {
+      err(e?.message || "Failed to acknowledge");
+    } finally {
+      setAcking(null);
+    }
   }
 
   function downloadCsv() {
@@ -310,20 +325,81 @@ export default function AdminTimesheets() {
                 <th>Ended</th>
                 <th>Duration</th>
                 <th>Description</th>
+                <th>Acknowledge</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((e) => {
                 const u = users.find((x) => x.id === e.userId);
                 const t = tasks.find((x) => x.id === e.taskId);
+                const ackInBusy  = acking === e.id + ":clock-in";
+                const ackOutBusy = acking === e.id + ":clock-out";
+                const inAcked  = Boolean(e.clockInAckedAt);
+                const outAcked = Boolean(e.clockOutAckedAt);
                 return (
                   <tr key={e.id}>
                     <td>{u?.name || u?.email || <span className="text-gray-400">unknown</span>}</td>
                     <td className="text-gray-600">{t?.title || "—"}</td>
-                    <td>{fmtDateTime(e.startedAt)}</td>
-                    <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-700">in progress</span>}</td>
+                    <td>
+                      {fmtDateTime(e.startedAt)}
+                      {inAcked && (
+                        <div className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-emerald-700">
+                          <CheckCheck size={11} /> seen
+                          {e.clockInAckedByName ? ` · ${e.clockInAckedByName}` : ""}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-700">in progress</span>}
+                      {outAcked && (
+                        <div className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-emerald-700">
+                          <CheckCheck size={11} /> seen
+                          {e.clockOutAckedByName ? ` · ${e.clockOutAckedByName}` : ""}
+                        </div>
+                      )}
+                    </td>
                     <td className="font-mono">{e.endedAt ? fmtMinutes(e.durationMinutes) : "—"}</td>
                     <td className="text-gray-600">{e.description || "—"}</td>
+                    <td>
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          disabled={inAcked || ackInBusy}
+                          onClick={() => acknowledge(e.id, "clock-in")}
+                          className={
+                            "inline-flex items-center justify-center gap-1 h-7 px-2 rounded text-[11px] font-medium border transition " +
+                            (inAcked
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default"
+                              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50")
+                          }
+                          title={inAcked ? `Acknowledged ${e.clockInAckedAt ? fmtDateTime(e.clockInAckedAt) : ""}` : "Acknowledge clock-in"}
+                        >
+                          {inAcked ? <><CheckCheck size={11} /> Clock-in seen</> : <><Check size={11} /> {ackInBusy ? "…" : "Ack clock-in"}</>}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!e.endedAt || outAcked || ackOutBusy}
+                          onClick={() => acknowledge(e.id, "clock-out")}
+                          className={
+                            "inline-flex items-center justify-center gap-1 h-7 px-2 rounded text-[11px] font-medium border transition " +
+                            (outAcked
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default"
+                              : !e.endedAt
+                                ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50")
+                          }
+                          title={
+                            !e.endedAt
+                              ? "Not yet clocked out"
+                              : outAcked
+                                ? `Acknowledged ${e.clockOutAckedAt ? fmtDateTime(e.clockOutAckedAt) : ""}`
+                                : "Acknowledge clock-out"
+                          }
+                        >
+                          {outAcked ? <><CheckCheck size={11} /> Clock-out seen</> : <><Check size={11} /> {ackOutBusy ? "…" : "Ack clock-out"}</>}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}

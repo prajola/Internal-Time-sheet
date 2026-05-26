@@ -170,6 +170,8 @@ function kindBg(kind: NotificationKind): string {
   switch (kind) {
     case "clock-in":              return "bg-emerald-50 text-emerald-700 border border-emerald-200";
     case "clock-out":             return "bg-blue-50 text-blue-700 border border-blue-200";
+    case "clock-in-acknowledged":
+    case "clock-out-acknowledged":return "bg-emerald-50 text-emerald-700 border border-emerald-200";
     case "task-assigned":         return "bg-brand-50 text-brand-700 border border-brand-200";
     case "task-updated":          return "bg-brand-50 text-brand-700 border border-brand-200";
     case "task-status-changed":   return "bg-amber-50 text-amber-700 border border-amber-200";
@@ -188,6 +190,8 @@ function kindIcon(kind: NotificationKind) {
   switch (kind) {
     case "clock-in":
     case "clock-out":             return <Clock size={size} />;
+    case "clock-in-acknowledged":
+    case "clock-out-acknowledged":return <CheckCheck size={size} />;
     case "task-assigned":         return <ClipboardList size={size} />;
     case "task-updated":          return <ListChecks size={size} />;
     case "task-status-changed":   return <ListChecks size={size} />;

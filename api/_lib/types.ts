@@ -46,6 +46,16 @@ export interface TimeEntry {
   durationMinutes: number;      // computed once endedAt is set
   createdAt: string;
   updatedAt: string;
+  /** Admin acknowledgement of the clock-in / clock-out moments.
+   *  These are stamped via PATCH /api/time-entries/:id with
+   *  `ack: "clock-in" | "clock-out"`. When set, a Notification is
+   *  pushed to the entry's owner so the bell pings in their portal. */
+  clockInAckedAt?: string | null;
+  clockInAckedBy?: string | null;
+  clockInAckedByName?: string | null;
+  clockOutAckedAt?: string | null;
+  clockOutAckedBy?: string | null;
+  clockOutAckedByName?: string | null;
 }
 
 export interface Invitation {
@@ -79,6 +89,8 @@ export type NotificationKind =
   | "account-force-signout"
   | "clock-in"
   | "clock-out"
+  | "clock-in-acknowledged"
+  | "clock-out-acknowledged"
   | "query-raised"
   | "query-responded"
   | "query-status-changed";

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Trash2, Plus, X, Clock } from "lucide-react";
+import { Pencil, Trash2, Plus, X, Clock, CheckCheck } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../components/Toast";
@@ -93,8 +93,28 @@ export default function MyTimesheet() {
             <tbody>
               {entries.map((e) => (
                 <tr key={e.id}>
-                  <td>{fmtDateTime(e.startedAt)}</td>
-                  <td>{e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-700">in progress</span>}</td>
+                  <td>
+                    {fmtDateTime(e.startedAt)}
+                    {e.clockInAckedAt && (
+                      <div
+                        className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-emerald-700"
+                        title={`Acknowledged ${fmtDateTime(e.clockInAckedAt)}${e.clockInAckedByName ? ` by ${e.clockInAckedByName}` : ""}`}
+                      >
+                        <CheckCheck size={11} /> seen by admin{e.clockInAckedByName ? ` · ${e.clockInAckedByName}` : ""}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    {e.endedAt ? fmtDateTime(e.endedAt) : <span className="text-brand-700">in progress</span>}
+                    {e.clockOutAckedAt && (
+                      <div
+                        className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-emerald-700"
+                        title={`Acknowledged ${fmtDateTime(e.clockOutAckedAt)}${e.clockOutAckedByName ? ` by ${e.clockOutAckedByName}` : ""}`}
+                      >
+                        <CheckCheck size={11} /> seen by admin{e.clockOutAckedByName ? ` · ${e.clockOutAckedByName}` : ""}
+                      </div>
+                    )}
+                  </td>
                   <td className="font-mono">{e.endedAt ? fmtMinutes(e.durationMinutes) : "—"}</td>
                   <td className="text-gray-600">{tasks.find((t) => t.id === e.taskId)?.title || "—"}</td>
                   <td className="text-gray-600">{e.description || "—"}</td>
