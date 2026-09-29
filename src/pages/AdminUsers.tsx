@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Plus, X, UserCog, UserX, UserCheck, Lock, Users as UsersIcon, Download,
   Search as SearchIcon, XCircle, CalendarRange, Filter, Copy, Check, Mail, AlertCircle,
+  User as UserIcon, ShieldCheck,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
@@ -394,15 +395,15 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
+    <div className="ko-modal-backdrop ko-fade-in">
       {result ? (
         /* ── Success state — show the copy-able link ───────────────── */
-        <div className="ko-card-glow p-6 w-full max-w-md ko-modal-body">
+        <div className="ko-card-glow p-4 sm:p-6 w-full max-w-md ko-modal-body">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-display text-xl inline-flex items-center gap-2">
               <Check size={18} className="text-emerald-600" /> Invite created
             </h2>
-            <button type="button" className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={closeAndRefresh}><X size={14} /></button>
+            <button type="button" className="ko-btn-ghost h-8 w-8 px-0 inline-flex items-center justify-center" onClick={closeAndRefresh}><X size={14} /></button>
           </div>
 
           <p className="text-[13px] text-gray-700 mb-1">
@@ -450,10 +451,10 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
         </div>
       ) : (
         /* ── Form state ────────────────────────────────────────────── */
-        <form onSubmit={submit} className="ko-card-glow p-6 w-full max-w-md ko-modal-body">
+        <form onSubmit={submit} className="ko-card-glow p-4 sm:p-6 w-full max-w-md ko-modal-body">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-display text-xl">Invite user</h2>
-            <button type="button" className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
+            <button type="button" className="ko-btn-ghost h-8 w-8 px-0 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
           </div>
           <div className="space-y-3">
             <FieldRow label="Email">
@@ -463,10 +464,7 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
               <input className="ko-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
             </FieldRow>
             <FieldRow label="Role">
-              <select className="ko-input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-                <option value="EMPLOYEE">Employee</option>
-                <option value="ADMIN">Admin</option>
-              </select>
+              <RolePicker value={role} onChange={setRole} />
             </FieldRow>
           </div>
           <p className="text-[11px] text-gray-500 mt-4">
@@ -478,6 +476,46 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+/**
+ * Role choice as two buttons rather than a dropdown, so the selected
+ * one is visible without opening anything. Matches the "Sign in as"
+ * toggle on the login page — same brand-tinted selected state.
+ */
+function RolePicker({ value, onChange }: { value: Role; onChange: (r: Role) => void }) {
+  const options: Array<{ value: Role; label: string; icon: React.ReactNode; hint: string }> = [
+    { value: "EMPLOYEE", label: "Employee", icon: <UserIcon size={14} />, hint: "Own tasks, timesheet and planner" },
+    { value: "ADMIN", label: "Admin", icon: <ShieldCheck size={14} />, hint: "Full access, can approve and manage" },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {options.map((o) => {
+        const selected = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(o.value)}
+            className={
+              "rounded-md border px-3 py-2.5 text-left transition " +
+              (selected
+                ? "bg-brand-50 border-brand-300 text-brand-800 ring-1 ring-brand-200"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300")
+            }
+          >
+            <span className="flex items-center gap-1.5 text-[13px] font-medium">
+              {o.icon} {o.label}
+            </span>
+            <span className={"block text-[11px] mt-0.5 " + (selected ? "text-brand-700/80" : "text-gray-500")}>
+              {o.hint}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

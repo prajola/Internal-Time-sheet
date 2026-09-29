@@ -185,11 +185,11 @@ function EntryDialog({ entry, tasks, onClose, onSaved }: DialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
+    <div className="ko-modal-backdrop ko-fade-in">
       <div className="ko-card-glow p-6 w-full max-w-lg ko-modal-body">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">{entry ? "Edit time entry" : "New time entry"}</h2>
-          <button className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
+          <button className="ko-btn-ghost h-8 w-8 px-0 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
         </div>
         <div className="space-y-3">
           {tasks.length > 0 && (

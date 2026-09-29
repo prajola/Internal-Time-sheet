@@ -409,11 +409,11 @@ function TaskDialog({ task, users, onClose, onSaved }: DialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
+    <div className="ko-modal-backdrop ko-fade-in">
       <form onSubmit={save} className="ko-card-glow p-6 w-full max-w-lg ko-modal-body">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-xl">{task ? "Edit task" : "New task"}</h2>
-          <button type="button" className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
+          <button type="button" className="ko-btn-ghost h-8 w-8 px-0 inline-flex items-center justify-center" onClick={onClose}><X size={14} /></button>
         </div>
         <div className="space-y-3">
           <Row label="Title"><input required className="ko-input" value={title} onChange={(e) => setTitle(e.target.value)} /></Row>

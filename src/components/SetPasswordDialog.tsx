@@ -98,14 +98,14 @@ export function SetPasswordDialog({ user, onClose, onSaved, onSuccessToast, onEr
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-md ko-fade-in flex items-center justify-center px-4">
+    <div className="ko-modal-backdrop ko-fade-in">
       <form onSubmit={submit} className="ko-card-elevated p-6 w-full max-w-md ko-modal-body">
         <div className="flex justify-between items-start mb-4 gap-3">
           <div>
             <h2 className="font-display text-xl text-gray-900">Set a new password</h2>
             <p className="text-[12px] text-gray-500 mt-0.5">For <span className="text-gray-900">{user.email}</span></p>
           </div>
-          <button type="button" className="ko-btn-ghost h-8 w-8 inline-flex items-center justify-center" onClick={onClose} aria-label="Close"><X size={14} /></button>
+          <button type="button" className="ko-btn-ghost h-8 w-8 px-0 inline-flex items-center justify-center" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
 
         <div className="mb-4 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2.5 inline-flex items-start gap-2 w-full">
