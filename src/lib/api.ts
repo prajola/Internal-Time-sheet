@@ -1,7 +1,13 @@
 /**
  * Tiny fetch wrapper. Sends JSON, parses JSON, throws on non-2xx with
  * a useful error message. Cookies (session) included automatically.
+ *
+ * Call sites pass plain "/api/…" paths; this module prefixes the app's
+ * mount path so they resolve under https://kubegraf.io/timesheet rather
+ * than hitting the marketing site at the domain root.
  */
+import { BASE_PATH } from "./base";
+
 export interface ApiUser {
   id: string;
   email: string;
@@ -18,7 +24,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(`${BASE_PATH}${path}`, {
     credentials: "include",
     headers: {
       Accept: "application/json",

@@ -19,7 +19,7 @@ fine for an internal tool):
 | `AIRTABLE_BASE_ID` | `app0zBhig6cVzCTvi` | The KubeGraf Time Sheet base ID. |
 | `JWT_SECRET` | Run `openssl rand -base64 48` and paste the output. | Suggested starter value (regenerate before going live):<br/>`tHdRs0AOcQORlWnobChClhiyL9jVcqA3gt_salbh4n7j2LTsggzr09yEG76vJC9i`<br/>Changing this signs every user out. |
 | `BOOTSTRAP_ADMIN_EMAIL` | `prajol@kubegraf.io` | Whoever owns this email becomes ADMIN on first signup. After the workspace has any user, this var is ignored. |
-| `APP_URL` | `https://<your-deploy>.vercel.app` | Used in password-reset / invite emails so the links point at the right place. No trailing slash. |
+| `APP_URL` | `https://kubegraf.io/timesheet` | Used in password-reset / invite emails so the links point at the right place. No trailing slash. Must include the `/timesheet` path. |
 
 ### Optional (only if you want emails to work)
 
@@ -39,11 +39,62 @@ git push origin main
 Vercel auto-deploys on push. Or trigger manually from the Vercel
 dashboard → Deployments → Redeploy.
 
+## 2a. Route kubegraf.io/timesheet to the deployment
+
+**This step is not done yet and the app is not reachable at the
+production URL until it is.**
+
+The app is built to live at the `/timesheet` sub-path — `vite.config.ts`
+sets `base: "/timesheet/"`, the bundle is emitted to `dist/timesheet/`,
+the router is mounted at `/timesheet`, and the browser calls
+`/timesheet/api/*`. So the Vercel deployment already serves the whole
+app under `/timesheet`:
+
+```
+https://kubegraf-timesheet.vercel.app/timesheet/login
+https://kubegraf-timesheet.vercel.app/timesheet/api/auth/me
+```
+
+`kubegraf.io` is a *different* site (Firebase Hosting behind
+Cloudflare), so the last hop is a routing rule on whatever fronts
+`kubegraf.io`. **Forward the path unchanged** — `/timesheet/x` must
+arrive as `/timesheet/x`, not `/x` — because the asset and API URLs
+in the built HTML already carry the prefix.
+
+Pick whichever matches how kubegraf.io is served:
+
+**Cloudflare** — Rules → Origin Rules (or a Worker):
+match `kubegraf.io/timesheet*` → proxy to
+`kubegraf-timesheet.vercel.app`, preserving the path.
+
+**Firebase Hosting** — `firebase.json` on the marketing site:
+
+```json
+{ "hosting": { "rewrites": [
+  { "source": "/timesheet/**", "run": { ... } }
+] } }
+```
+
+Firebase can only rewrite to Cloud Run / Functions, not an arbitrary
+host, so on Firebase the Cloudflare rule is the simpler route.
+
+**Verify** after the rule is live:
+
+```sh
+curl -sI https://kubegraf.io/timesheet/login | head -1          # 200
+curl -s  https://kubegraf.io/timesheet/ | grep -o '<title>.*'   # Internal Time Sheet
+curl -s -o /dev/null -w '%{http_code}\n' \
+     https://kubegraf.io/timesheet/api/auth/me                  # 401
+```
+
+If the title still reads "AI SRE platform", the request is still being
+served by the marketing site and the rule hasn't taken effect.
+
 ## 3. Verify after deploy
 
 In a fresh browser (or incognito):
 
-1. Open `https://<your-deploy>.vercel.app/login`.
+1. Open `https://kubegraf.io/timesheet/login`.
 2. Click **Sign up** → enter `prajol@kubegraf.io` + your password.
 3. Click **Sign in** as **Admin** with the same credentials → should land in `/manage`.
 4. Sign out → sign back in → should still work.
@@ -55,7 +106,7 @@ If any step fails, check **Vercel → Deployments → [latest] → Functions** l
 Airtable doesn't auto-back-up free-tier bases. **Monthly habit**:
 
 1. Open the base at https://airtable.com/app0zBhig6cVzCTvi.
-2. Top-right menu → **Download CSV** for each table (Users, Tasks, TimeEntries, Invitations, Notifications).
+2. Top-right menu → **Download CSV** for each table (Users, Tasks, TimeEntries, Holidays, Invitations, Notifications).
 3. Save the CSVs somewhere durable (Google Drive, GitHub repo, anywhere off Airtable).
 
 For automated backups, the simplest path is a GitHub Actions cron that
@@ -87,7 +138,9 @@ set -a; . ./.env.local; set +a
 npm run dev:vercel   # vercel dev --listen 5050
 ```
 
-Open http://localhost:5050.
+Open http://localhost:5050/timesheet/ — dev uses the same `/timesheet`
+mount path as production, so sub-path bugs surface locally rather than
+after a deploy. The bare root redirects there in production.
 
 To verify the API end-to-end after a change:
 

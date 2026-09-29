@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, Mail } from "lucide-react";
 import { api } from "../lib/api";
+import { asset, withBase } from "../lib/base";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -23,7 +24,7 @@ export default function ForgotPassword() {
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-[440px]">
         <div className="flex items-center gap-2.5 mb-5">
-          <img src="/kubegraf-logo.png" alt="KubeGraf" className="w-9 h-9 object-contain" />
+          <img src={asset("kubegraf-logo.png")} alt="KubeGraf" className="w-9 h-9 object-contain" />
           <div className="leading-tight">
             <div className="font-display text-[15px] font-semibold tracking-tight text-gray-900">KubeGraf</div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Internal Time Sheet</div>
@@ -41,7 +42,7 @@ export default function ForgotPassword() {
                 If <span className="text-gray-900">{email}</span> matches an account or pending invite,
                 a password setup link is on its way. It's valid for 24 hours.
               </p>
-              <a href="/login" className="ko-btn-ghost inline-flex items-center justify-center h-10 px-4 text-[13px] gap-1.5">
+              <a href={withBase("/login")} className="ko-btn-ghost inline-flex items-center justify-center h-10 px-4 text-[13px] gap-1.5">
                 <ArrowLeft size={14} /> Back to sign in
               </a>
             </div>
@@ -79,7 +80,7 @@ export default function ForgotPassword() {
               </form>
 
               <div className="mt-6 pt-5 border-t border-gray-200">
-                <a href="/login" className="text-[13px] text-gray-500 hover:text-gray-900 inline-flex items-center gap-1.5">
+                <a href={withBase("/login")} className="text-[13px] text-gray-500 hover:text-gray-900 inline-flex items-center gap-1.5">
                   <ArrowLeft size={14} /> Back to sign in
                 </a>
               </div>

@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Mail, AlertTriangle, 
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import type { User } from "../types";
+import { asset } from "../lib/base";
 
 type Intent = "signin" | "signup";
 type Portal = "EMPLOYEE" | "ADMIN";
@@ -161,7 +162,7 @@ export default function Login() {
         {/* Brand */}
         <div className="flex items-center justify-center gap-3 mb-6">
           <img
-            src="/kubegraf-logo.png"
+            src={asset("kubegraf-logo.png")}
             alt="KubeGraf"
             className="w-11 h-11 object-contain drop-shadow-[0_4px_12px_rgba(255,160,80,0.25)]"
           />
