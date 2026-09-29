@@ -63,7 +63,11 @@ export type NotificationKind =
   | "clock-out-acknowledged"
   | "query-raised"
   | "query-responded"
-  | "query-status-changed";
+  | "query-status-changed"
+  | "holiday-requested"
+  | "holiday-approved"
+  | "holiday-rejected"
+  | "holiday-cancelled";
 
 export interface Notification {
   id: string;
@@ -108,4 +112,36 @@ export interface SupportQuery {
   respondedAt: string | null;
   respondedBy: string | null;
   respondedByName: string | null;
+}
+
+/**
+ * Two categories of time off, distinguished by `holidayCategory()`:
+ *   planned  — ANNUAL, UNPAID      → "holiday"
+ *   unplanned — SICK, EMERGENCY, OTHER → "absence"
+ * Both follow the same request/approve flow; the split only
+ * changes how they are labelled and counted.
+ */
+export type HolidayKind =
+  | "ANNUAL" | "UNPAID"                 // planned holiday
+  | "SICK" | "EMERGENCY" | "OTHER";     // unplanned absence
+export type HolidayStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+
+export interface Holiday {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  startDate: string;        // YYYY-MM-DD, inclusive
+  endDate: string;          // YYYY-MM-DD, inclusive
+  halfDay: boolean;
+  kind: HolidayKind;
+  reason: string;
+  status: HolidayStatus;
+  days: number;             // working days (0.5 for a half day)
+  createdAt: string;
+  updatedAt: string;
+  decidedAt: string | null;
+  decidedBy: string | null;
+  decidedByName: string | null;
+  decisionNote: string;
 }

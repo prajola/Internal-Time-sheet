@@ -7,10 +7,12 @@
       "maxDuration": 30
     }
   },
+  "redirects": [
+    { "source": "/", "destination": "/timesheet/", "permanent": false }
+  ],
   "rewrites": [
-    {
-      "source": "/((?!api/|@|.*\\.).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/timesheet/api/:path*", "destination": "/api/:path*" },
+    { "source": "/timesheet", "destination": "/timesheet/index.html" },
+    { "source": "/timesheet/((?!api/|.*\\.).*)", "destination": "/timesheet/index.html" }
   ]
 }

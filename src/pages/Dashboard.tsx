@@ -11,6 +11,7 @@ import { EmptyState } from "../components/EmptyState";
 import { NotificationFeed } from "../components/NotificationFeed";
 import { fmtDateTime, fmtMinutes, fmtTime, todayYmd } from "../lib/format";
 import type { Task, TimeEntry } from "../types";
+import { asset } from "../lib/base";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -123,7 +124,7 @@ export default function Dashboard() {
         <div className="relative flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0 flex items-start gap-4">
             <img
-              src="/kubegraf-logo.png"
+              src={asset("kubegraf-logo.png")}
               alt="KubeGraf"
               className="w-16 h-16 md:w-20 md:h-20 object-contain flex-shrink-0 drop-shadow-[0_6px_16px_rgba(255,160,80,0.20)]"
             />

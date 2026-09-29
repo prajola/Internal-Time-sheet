@@ -19,7 +19,7 @@ import { taskStatusEmail } from "../_lib/email.js";
 import type { Task, TaskPriority, TaskStatus, User } from "../_lib/types.js";
 
 function appUrl(): string {
-  return (process.env.APP_URL || "https://internal-time-sheet.vercel.app").replace(/\/$/, "");
+  return (process.env.APP_URL || "https://kubegraf.io/timesheet").replace(/\/$/, "");
 }
 
 interface PatchBody {

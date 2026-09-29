@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { api, ApiUser } from "./api";
+import { withBase } from "./base";
 
 interface AuthState {
   user: ApiUser | null;
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     _setUser(null);
     // Hard-navigate to /login so the entire app state (including any
     // cached protected-page data) gets reset.
-    window.location.href = "/login";
+    window.location.href = withBase("/login");
   }
 
   useEffect(() => { refresh(); }, []);

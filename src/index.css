@@ -176,6 +176,22 @@ textarea:focus-visible {
   .ko-modal-body {
     @apply max-h-[88vh] overflow-y-auto;
   }
+
+  /**
+   * Modal scrim.
+   *
+   * Just enough blur to push the page back, little enough that you can
+   * still tell what you were looking at — a heavy blur turns the app
+   * into unreadable mush and loses the sense of place. The dimming does
+   * most of the work of separating dialog from page; the blur only
+   * softens competing detail behind it.
+   */
+  .ko-modal-backdrop {
+    @apply fixed inset-0 z-40 flex items-center justify-center px-4;
+    background: rgba(17, 24, 39, 0.44);
+    backdrop-filter: blur(3px) saturate(0.9);
+    -webkit-backdrop-filter: blur(3px) saturate(0.9);
+  }
 }
 
 /* ── Scrollbar ──────────────────────────────────────────────── */
@@ -185,9 +201,21 @@ textarea:focus-visible {
 ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.20); background-clip: padding-box; }
 
 /* ── Animations ────────────────────────────────────────────── */
+/**
+ * Opacity only — deliberately no transform.
+ *
+ * `.ko-fade-in` sits on the page's <main> wrapper, and animation-fill-mode
+ * `both` means the final keyframe's styles persist. A lingering transform
+ * (even an identity one) makes that element the containing block for
+ * `position: fixed` descendants, which trapped every modal scrim inside
+ * the content column instead of covering the viewport.
+ *
+ * Use `.ko-fade-in-up` when a rise is wanted — but never on an element
+ * that contains a modal.
+ */
 @keyframes ko-fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 @keyframes ko-fade-in-up {
   from { opacity: 0; transform: translateY(8px); }

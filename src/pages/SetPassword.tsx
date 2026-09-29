@@ -4,6 +4,7 @@ import { CheckCircle2, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import type { User } from "../types";
+import { asset, withBase } from "../lib/base";
 
 interface Strength { score: 0 | 1 | 2 | 3 | 4; label: string; tone: string }
 
@@ -71,7 +72,7 @@ export default function SetPassword() {
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-[460px]">
         <div className="flex items-center gap-2.5 mb-5">
-          <img src="/kubegraf-logo.png" alt="KubeGraf" className="w-9 h-9 object-contain" />
+          <img src={asset("kubegraf-logo.png")} alt="KubeGraf" className="w-9 h-9 object-contain" />
           <div className="leading-tight">
             <div className="font-display text-[15px] font-semibold tracking-tight text-gray-900">KubeGraf</div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Internal Time Sheet</div>
@@ -89,7 +90,7 @@ export default function SetPassword() {
             <>
               <h1 className="text-[20px] font-semibold text-gray-900 mb-1.5">Link error</h1>
               <p className="text-[13px] text-gray-600 mb-6">{err}</p>
-              <a href="/login" className="ko-btn-primary inline-flex items-center justify-center h-11 px-5 text-[14px] font-semibold">
+              <a href={withBase("/login")} className="ko-btn-primary inline-flex items-center justify-center h-11 px-5 text-[14px] font-semibold">
                 Request a new link
               </a>
             </>

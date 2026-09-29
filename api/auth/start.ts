@@ -44,7 +44,7 @@ interface Body {
 }
 
 function appUrl(): string {
-  return (process.env.APP_URL || "https://internal-time-sheet.vercel.app").replace(/\/$/, "");
+  return (process.env.APP_URL || "https://kubegraf.io/timesheet").replace(/\/$/, "");
 }
 
 function setupLink(token: string): string {
