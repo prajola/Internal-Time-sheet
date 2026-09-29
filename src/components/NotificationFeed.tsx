@@ -4,6 +4,7 @@ import {
   Bell, CheckCheck, ArrowRight,
   ClipboardList, ListChecks, ShieldCheck, KeyRound, LogOut as LogOutIcon,
   UserCog, UserX, UserCheck, Clock,
+  CalendarClock, CalendarCheck, CalendarX,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { EmptyState } from "./EmptyState";
@@ -181,6 +182,10 @@ function kindBg(kind: NotificationKind): string {
     case "account-enabled":       return "bg-emerald-50 text-emerald-700 border border-emerald-200";
     case "account-password-reset":return "bg-brand-50 text-brand-700 border border-brand-200";
     case "account-force-signout": return "bg-gray-100 text-gray-700 border border-gray-200";
+    case "holiday-requested":     return "bg-amber-50 text-amber-700 border border-amber-200";
+    case "holiday-approved":      return "bg-teal-50 text-teal-700 border border-teal-200";
+    case "holiday-rejected":      return "bg-red-50 text-red-700 border border-red-200";
+    case "holiday-cancelled":     return "bg-gray-100 text-gray-700 border border-gray-200";
     default:                      return "bg-gray-100 text-gray-700 border border-gray-200";
   }
 }
@@ -201,6 +206,10 @@ function kindIcon(kind: NotificationKind) {
     case "account-enabled":       return <UserCheck size={size} />;
     case "account-password-reset":return <KeyRound size={size} />;
     case "account-force-signout": return <LogOutIcon size={size} />;
+    case "holiday-requested":     return <CalendarClock size={size} />;
+    case "holiday-approved":      return <CalendarCheck size={size} />;
+    case "holiday-rejected":
+    case "holiday-cancelled":     return <CalendarX size={size} />;
     default:                      return <ShieldCheck size={size} />;
   }
 }

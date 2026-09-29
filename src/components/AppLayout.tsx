@@ -2,10 +2,11 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LogOut, LayoutDashboard, ClipboardList, Clock, Users, ListChecks,
-  CalendarRange, Settings2, LifeBuoy,
+  CalendarRange, Settings2, LifeBuoy, CalendarDays,
 } from "lucide-react";
 import { useAuth } from "../lib/auth-context";
 import { NotificationBell } from "./NotificationBell";
+import { asset } from "../lib/base";
 
 interface NavItem {
   href: string;
@@ -38,6 +39,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             { href: "/users", label: "Users", icon: <Users size={16} /> },
             { href: "/tasks", label: "Tasks", icon: <ListChecks size={16} /> },
             { href: "/timesheets", label: "Timesheets", icon: <CalendarRange size={16} /> },
+            { href: "/planner", label: "Planner", icon: <CalendarDays size={16} /> },
             { href: "/queries", label: "Support", icon: <LifeBuoy size={16} /> },
             { href: "/manage", label: "Manage", icon: <Settings2 size={16} /> },
           ],
@@ -50,6 +52,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             { href: "/", label: "Dashboard", icon: <LayoutDashboard size={16} /> },
             { href: "/my-tasks", label: "My Tasks", icon: <ClipboardList size={16} /> },
             { href: "/my-timesheet", label: "My Timesheet", icon: <Clock size={16} /> },
+            { href: "/my-planner", label: "My Planner", icon: <CalendarDays size={16} /> },
             { href: "/my-queries", label: "Help & support", icon: <LifeBuoy size={16} /> },
           ],
         },
@@ -67,7 +70,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
           <Link href="/" className="flex items-center gap-2 sm:gap-2.5 group min-w-0">
             <img
-              src="/kubegraf-logo.png"
+              src={asset("kubegraf-logo.png")}
               alt="KubeGraf"
               className="w-8 h-8 sm:w-9 sm:h-9 object-contain transition-transform group-hover:scale-105 flex-shrink-0"
             />
