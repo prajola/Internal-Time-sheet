@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * One-off setup: create the 5 tables used by the API in the configured
- * Airtable base. Idempotent — skips tables that already exist.
+ * One-off setup: create the tables used by the API in the configured
+ * Airtable base. Idempotent — skips tables that already exist, so it's
+ * also the way to add a newly-introduced table to an existing base.
  *
  *   node --env-file=.env.local scripts/setup-airtable.mjs
  *
@@ -30,6 +31,8 @@ const TEXT = { type: "singleLineText" };
 const LONGTEXT = { type: "multilineText" };
 const BOOL = { type: "checkbox", options: { color: "greenBright", icon: "check" } };
 const NUM = { type: "number", options: { precision: 0 } };
+// Holiday day-counts need one decimal so a half day stores as 0.5.
+const HALFNUM = { type: "number", options: { precision: 1 } };
 
 const SCHEMA = [
   {
@@ -106,6 +109,28 @@ const SCHEMA = [
       { name: "respondedAt", ...TEXT },
       { name: "respondedBy", ...TEXT },
       { name: "respondedByName", ...TEXT },
+    ],
+  },
+  {
+    name: "Holidays",
+    fields: [
+      { name: "id", ...TEXT },          // primary
+      { name: "userId", ...TEXT },
+      { name: "userName", ...TEXT },
+      { name: "userEmail", ...TEXT },
+      { name: "startDate", ...TEXT },   // YYYY-MM-DD, inclusive
+      { name: "endDate", ...TEXT },     // YYYY-MM-DD, inclusive
+      { name: "halfDay", ...BOOL },
+      { name: "kind", ...TEXT },        // "ANNUAL" | "SICK" | "UNPAID" | "OTHER"
+      { name: "reason", ...LONGTEXT },
+      { name: "status", ...TEXT },      // "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"
+      { name: "days", ...HALFNUM },     // working days; 0.5 for a half day
+      { name: "createdAt", ...TEXT },
+      { name: "updatedAt", ...TEXT },
+      { name: "decidedAt", ...TEXT },
+      { name: "decidedBy", ...TEXT },
+      { name: "decidedByName", ...TEXT },
+      { name: "decisionNote", ...LONGTEXT },
     ],
   },
   {

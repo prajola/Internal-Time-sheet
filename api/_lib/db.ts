@@ -16,7 +16,7 @@
  * it doesn't lose interleaved writes from other code paths the way the
  * old blob backend did.
  */
-import type { User, Task, Invitation, TimeEntry, Notification, SupportQuery } from "./types.js";
+import type { User, Task, Invitation, TimeEntry, Notification, SupportQuery, Holiday } from "./types.js";
 
 const TOKEN = process.env.AIRTABLE_TOKEN;
 const BASE = process.env.AIRTABLE_BASE_ID;
@@ -28,6 +28,7 @@ const TABLE = {
   invitations: "Invitations",
   notifications: "Notifications",
   queries: "Queries",
+  holidays: "Holidays",
 } as const;
 
 function api(table: string, path = ""): string {
@@ -333,6 +334,49 @@ function queryFromFields(f: any): SupportQuery {
   };
 }
 
+function holidayToFields(h: Holiday): Record<string, any> {
+  return {
+    id: h.id,
+    userId: h.userId,
+    userName: h.userName ?? "",
+    userEmail: h.userEmail ?? "",
+    startDate: h.startDate,
+    endDate: h.endDate,
+    halfDay: h.halfDay === true,
+    kind: h.kind,
+    reason: h.reason ?? "",
+    status: h.status,
+    days: h.days ?? 0,
+    createdAt: h.createdAt,
+    updatedAt: h.updatedAt,
+    decidedAt: h.decidedAt ?? "",
+    decidedBy: h.decidedBy ?? "",
+    decidedByName: h.decidedByName ?? "",
+    decisionNote: h.decisionNote ?? "",
+  };
+}
+function holidayFromFields(f: any): Holiday {
+  return {
+    id: f.id,
+    userId: f.userId,
+    userName: f.userName ?? "",
+    userEmail: f.userEmail ?? "",
+    startDate: f.startDate ?? "",
+    endDate: f.endDate ?? "",
+    halfDay: f.halfDay === true,
+    kind: f.kind,
+    reason: f.reason ?? "",
+    status: f.status,
+    days: typeof f.days === "number" ? f.days : 0,
+    createdAt: f.createdAt,
+    updatedAt: f.updatedAt,
+    decidedAt: f.decidedAt || null,
+    decidedBy: f.decidedBy || null,
+    decidedByName: f.decidedByName || null,
+    decisionNote: f.decisionNote ?? "",
+  };
+}
+
 /* ── Users ───────────────────────────────────────────────────── */
 
 export async function listUsers(): Promise<User[]> {
@@ -584,4 +628,38 @@ export async function upsertQuery(q: SupportQuery): Promise<void> {
 export async function removeQuery(id: string): Promise<void> {
   const recId = await findRecordIdByOurId(TABLE.queries, id);
   if (recId) await deleteRecord(TABLE.queries, recId);
+}
+
+/* ── Holidays (leave requests) ───────────────────────────────── */
+
+/** Newest request first — same ordering convention as queries. */
+function byNewest(a: Holiday, b: Holiday): number {
+  return (b.createdAt || "").localeCompare(a.createdAt || "");
+}
+
+export async function listHolidays(): Promise<Holiday[]> {
+  const recs = await listRecords(TABLE.holidays);
+  return recs.map((r) => holidayFromFields(r.fields)).sort(byNewest);
+}
+export async function listHolidaysForUser(userId: string): Promise<Holiday[]> {
+  const safe = userId.replace(/'/g, "\\'");
+  const recs = await listRecords(TABLE.holidays, {
+    filterFormula: `{userId}='${safe}'`,
+  });
+  return recs.map((r) => holidayFromFields(r.fields)).sort(byNewest);
+}
+export async function findHoliday(id: string): Promise<Holiday | null> {
+  const recId = await findRecordIdByOurId(TABLE.holidays, id);
+  if (!recId) return null;
+  const r = await fetchWithRetry(api(TABLE.holidays, `/${recId}`), { headers: authHeaders() });
+  if (!r.ok) return null;
+  const data = await r.json();
+  return holidayFromFields(data.fields ?? {});
+}
+export async function upsertHoliday(h: Holiday): Promise<void> {
+  await upsertByOurId(TABLE.holidays, h.id, holidayToFields(h));
+}
+export async function removeHoliday(id: string): Promise<void> {
+  const recId = await findRecordIdByOurId(TABLE.holidays, id);
+  if (recId) await deleteRecord(TABLE.holidays, recId);
 }

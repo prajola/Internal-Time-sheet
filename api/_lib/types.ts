@@ -93,7 +93,11 @@ export type NotificationKind =
   | "clock-out-acknowledged"
   | "query-raised"
   | "query-responded"
-  | "query-status-changed";
+  | "query-status-changed"
+  | "holiday-requested"
+  | "holiday-approved"
+  | "holiday-rejected"
+  | "holiday-cancelled";
 
 export interface Notification {
   id: string;
@@ -165,4 +169,47 @@ export interface SetupTokenClaims {
   nonce: string;                // random per-link, single-use enforced
   iat: number;
   exp: number;
+}
+
+/* ── Holidays (leave requests shown on the planner) ──────────── */
+
+/**
+ * Two categories of time off, distinguished by `holidayCategory()`:
+ *   planned  — ANNUAL, UNPAID      → "holiday"
+ *   unplanned — SICK, EMERGENCY, OTHER → "absence"
+ * Both follow the same request/approve flow; the split only
+ * changes how they are labelled and counted.
+ */
+export type HolidayKind =
+  | "ANNUAL" | "UNPAID"                 // planned holiday
+  | "SICK" | "EMERGENCY" | "OTHER";     // unplanned absence
+export type HolidayStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+
+/**
+ * A leave request spanning one or more calendar days.
+ *
+ * Dates are plain `YYYY-MM-DD` (not ISO datetimes) — a holiday is a
+ * whole-day concept and storing it as a timestamp invites timezone
+ * drift where a day flips either side of midnight. `days` is the
+ * working-day count (Mon–Fri) computed server-side at request time so
+ * the UI never has to recompute it.
+ */
+export interface Holiday {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  startDate: string;              // YYYY-MM-DD, inclusive
+  endDate: string;                // YYYY-MM-DD, inclusive
+  halfDay: boolean;               // only meaningful when start === end
+  kind: HolidayKind;
+  reason: string;
+  status: HolidayStatus;
+  days: number;                   // working days (0.5 for a half day)
+  createdAt: string;              // ISO datetime
+  updatedAt: string;
+  decidedAt: string | null;       // ISO — when an admin approved/rejected
+  decidedBy: string | null;       // admin userId
+  decidedByName: string | null;
+  decisionNote: string;           // admin's note on approve/reject
 }
