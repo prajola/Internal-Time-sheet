@@ -10,7 +10,7 @@ import {
   CalendarDays, Plus, X, ArrowRight, CalendarClock, Ban,
   BriefcaseBusiness, Timer, CalendarCheck, CircleAlert,
 } from "lucide-react";
-import { api } from "../lib/api";
+import { api, holidaysUrl, holidaysBody, HOLIDAYS_POST_URL } from "../lib/api";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
@@ -51,7 +51,7 @@ export default function MyPlanner() {
       // Holidays unfiltered — the request list below shows every one,
       // and each view filters to the period it's showing.
       const [h, e] = await Promise.all([
-        api.get<{ holidays: Holiday[] }>("/api/holidays"),
+        api.get<{ holidays: Holiday[] }>(holidaysUrl()),
         api.get<{ entries: TimeEntry[] }>(`/api/time-entries?year=${year}`),
       ]);
       setHolidays(h.holidays);
@@ -261,7 +261,7 @@ function RequestCard({ h, onChanged, onDeleted }: {
     if (!confirm("Withdraw this holiday request?")) return;
     setBusy(true);
     try {
-      const r = await api.post<{ holiday: Holiday }>("/api/holidays", { action: "cancel", id: h.id });
+      const r = await api.post<{ holiday: Holiday }>(HOLIDAYS_POST_URL, holidaysBody({ action: "cancel", id: h.id }));
       onChanged(r.holiday);
       ok("Request withdrawn.");
     } catch (e: any) { err(e?.message || "Failed to cancel"); }
@@ -272,7 +272,7 @@ function RequestCard({ h, onChanged, onDeleted }: {
     if (!confirm("Delete this request from your history?")) return;
     setBusy(true);
     try {
-      await api.post("/api/holidays", { action: "delete", id: h.id });
+      await api.post(HOLIDAYS_POST_URL, holidaysBody({ action: "delete", id: h.id }));
       onDeleted(h.id);
       ok("Deleted.");
     } catch (e: any) { err(e?.message || "Failed to delete"); }

@@ -11,7 +11,7 @@ import {
   CalendarDays, CalendarClock, CalendarCheck, Check, X, XCircle,
   Search as SearchIcon, Filter, Ban, BriefcaseBusiness, Radio, Plus,
 } from "lucide-react";
-import { api } from "../lib/api";
+import { api, holidaysUrl, holidaysBody, HOLIDAYS_POST_URL } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageHeader";
@@ -60,7 +60,7 @@ export default function AdminPlanner() {
     if (opts.quiet) setRefreshing(true); else setLoading(true);
     try {
       const [h, e, u] = await Promise.all([
-        api.get<{ holidays: Holiday[] }>("/api/holidays"),
+        api.get<{ holidays: Holiday[] }>(holidaysUrl()),
         api.get<{ entries: TimeEntry[] }>(`/api/time-entries?year=${year}`),
         api.get<{ users: User[] }>("/api/users"),
       ]);
@@ -484,9 +484,9 @@ function AdminHolidayCard({ h, onChanged, onDeleted, highlight }: {
     }
     setBusy(true);
     try {
-      const r = await api.post<{ holiday: Holiday }>("/api/holidays", {
+      const r = await api.post<{ holiday: Holiday }>(HOLIDAYS_POST_URL, holidaysBody({
         action, id: h.id, note: note.trim(),
-      });
+      }));
       onChanged(r.holiday);
       setRejecting(false);
       setNote("");
@@ -499,9 +499,9 @@ function AdminHolidayCard({ h, onChanged, onDeleted, highlight }: {
     if (!confirm(`Cancel ${h.userName || h.userEmail}'s approved holiday?`)) return;
     setBusy(true);
     try {
-      const r = await api.post<{ holiday: Holiday }>("/api/holidays", {
+      const r = await api.post<{ holiday: Holiday }>(HOLIDAYS_POST_URL, holidaysBody({
         action: "cancel", id: h.id, note: note.trim(),
-      });
+      }));
       onChanged(r.holiday);
       ok("Holiday cancelled.");
     } catch (e: any) { err(e?.message || "Failed"); }
@@ -512,7 +512,7 @@ function AdminHolidayCard({ h, onChanged, onDeleted, highlight }: {
     if (!confirm("Delete this request permanently?")) return;
     setBusy(true);
     try {
-      await api.post("/api/holidays", { action: "delete", id: h.id });
+      await api.post(HOLIDAYS_POST_URL, holidaysBody({ action: "delete", id: h.id }));
       onDeleted(h.id);
       ok("Deleted.");
     } catch (e: any) { err(e?.message || "Failed"); }

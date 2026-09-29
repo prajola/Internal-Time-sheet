@@ -43,6 +43,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return json as T;
 }
 
+/**
+ * Time-off requests are served by the combined /api/queries function
+ * rather than their own route — Vercel caps serverless functions per
+ * deployment, so the handler is folded in behind `resource=holidays`.
+ * These helpers keep that detail in one place instead of at every call
+ * site.
+ */
+export const holidaysUrl = (query = "") =>
+  `/api/queries?resource=holidays${query ? `&${query}` : ""}`;
+
+export const holidaysBody = <T extends object>(fields: T) =>
+  ({ resource: "holidays", ...fields });
+
+export const HOLIDAYS_POST_URL = "/api/queries";
+
 export const api = {
   get:  <T>(path: string)            => request<T>(path),
   post: <T>(path: string, body: any) => request<T>(path, { method: "POST", body: JSON.stringify(body) }),

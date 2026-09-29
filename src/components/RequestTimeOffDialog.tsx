@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import { X, ArrowRight } from "lucide-react";
-import { api } from "../lib/api";
+import { api, holidaysBody, HOLIDAYS_POST_URL } from "../lib/api";
 import { useToast } from "./Toast";
 import {
   CATEGORY_LABEL, DEFAULT_KIND, countWorkingDays, formatDays,
@@ -49,14 +49,14 @@ export function RequestTimeOffDialog({ prefillDate, initialCategory = "HOLIDAY",
     if (workingDays === 0) { err("That range is all weekend — pick at least one working day."); return; }
     setBusy(true);
     try {
-      const r = await api.post<{ holiday: Holiday }>("/api/holidays", {
+      const r = await api.post<{ holiday: Holiday }>(HOLIDAYS_POST_URL, holidaysBody({
         action: "request",
         startDate,
         endDate,
         kind,
         halfDay: singleDay && halfDay,
         reason: reason.trim(),
-      });
+      }));
       onCreated(r.holiday);
     } catch (e: any) { err(e?.message || "Failed to request holiday"); }
     finally { setBusy(false); }

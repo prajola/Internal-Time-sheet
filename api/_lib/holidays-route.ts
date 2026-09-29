@@ -1,10 +1,20 @@
 /**
- * GET  /api/holidays — list leave requests.
+ * Time-off (holiday / absence) request handling.
+ *
+ * This lives in `_lib` rather than as `api/holidays.ts` on purpose:
+ * Vercel counts every file under `api/` as a serverless function, and
+ * the deployment is at the per-deployment cap. Files under `api/_lib/`
+ * are ignored by that count, so `api/queries.ts` dispatches here when a
+ * request carries `resource=holidays` — the same folding trick the
+ * clock-in/out actions use inside `api/time-entries/index.ts`.
+ *
+ * Reached as:
+ *   GET  /api/queries?resource=holidays — list leave requests.
  *                      Employee → only their own. Admin → everyone's.
  *                      Optional filters: ?from=YYYY-MM-DD&to=YYYY-MM-DD,
  *                      ?month=YYYY-MM, ?userId= (admin only), ?status=
  *
- * POST /api/holidays — body { action } variants:
+ *   POST /api/queries  — body { resource: "holidays", action } variants:
  *     { action: "request", startDate, endDate, kind, reason, halfDay? }
  *         Any signed-in user books time off. Lands as PENDING and
  *         notifies every active admin.
@@ -23,11 +33,9 @@
  *     { action: "delete", id }
  *         Owner or admin. Removes the record outright.
  *
- * Combined into one route to stay under Vercel Hobby's serverless
- * function cap — same reasoning as /api/queries.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAuth } from "./_lib/auth.js";
+import { requireAuth } from "./auth.js";
 import {
   listHolidays,
   listHolidaysForUser,
@@ -36,13 +44,13 @@ import {
   removeHoliday,
   listUsers,
   findUserById,
-} from "./_lib/db.js";
+} from "./db.js";
 import {
   readBody, ok, badRequest, methodNotAllowed, nowIso, uuid,
-} from "./_lib/helpers.js";
-import { notifyUser } from "./_lib/notify.js";
-import { accountUpdateEmail } from "./_lib/email.js";
-import type { Holiday, HolidayKind, HolidayStatus, User } from "./_lib/types.js";
+} from "./helpers.js";
+import { notifyUser } from "./notify.js";
+import { accountUpdateEmail } from "./email.js";
+import type { Holiday, HolidayKind, HolidayStatus, User } from "./types.js";
 
 const VALID_KINDS: HolidayKind[] = ["ANNUAL", "UNPAID", "SICK", "EMERGENCY", "OTHER"];
 
@@ -156,7 +164,7 @@ interface PostBody {
   note?: string;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function handleHolidays(req: VercelRequest, res: VercelResponse) {
   const me = await requireAuth(req, res);
   if (!me) return;
 

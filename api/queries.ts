@@ -21,6 +21,7 @@
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireAuth } from "./_lib/auth.js";
+import { handleHolidays } from "./_lib/holidays-route.js";
 import {
   listQueries,
   listQueriesForUser,
@@ -53,6 +54,16 @@ interface PostBody {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  /**
+   * Time-off requests ride on this function rather than having their
+   * own, to stay under Vercel's per-deployment serverless function cap.
+   * The holidays handler does its own auth, so hand off before ours.
+   */
+  const routed = req.method === "POST" ? readBody<{ resource?: string }>(req) : null;
+  if (req.query.resource === "holidays" || routed?.resource === "holidays") {
+    return handleHolidays(req, res);
+  }
+
   const me = await requireAuth(req, res);
   if (!me) return;
 
