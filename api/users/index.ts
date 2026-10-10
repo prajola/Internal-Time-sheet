@@ -27,7 +27,7 @@ import {
   isAllowedEmail,
   emailDomainError,
 } from "../_lib/helpers.js";
-import { sendMail, passwordSetupEmail } from "../_lib/email.js";
+import { sendMail, passwordSetupEmail, verifyMail, mailSender } from "../_lib/email.js";
 import { issueSetupToken } from "../_lib/auth.js";
 import { notifyAdmin } from "../_lib/notify.js";
 import { publicUser } from "../_lib/passwords.js";
@@ -55,6 +55,22 @@ function appUrlFromRequest(req: VercelRequest): string {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
+    // GET /api/users?diagnostics=email — admin-only SMTP preflight.
+    // Lives here rather than its own route because the project sits at
+    // the Vercel Hobby 12-function ceiling; a new file breaks the deploy.
+    if (req.query.diagnostics === "email") {
+      const admin = await requireAdmin(req, res);
+      if (!admin) return;
+      const result = await verifyMail();
+      return ok(res, {
+        configured: result.reason !== "not_configured",
+        canSend: result.ok,
+        sender: mailSender(),
+        reason: result.reason,
+        error: result.error,
+      });
+    }
+
     const me = await requireAuth(req, res);
     if (!me) return;
     const users = await listUsers();
@@ -126,6 +142,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       invitation: { id: inv.id, email: inv.email, role: inv.role },
       setupLink,
       emailSent: mail.ok,
+      // Surface *why* delivery failed. Without this an admin sees only
+      // "not sent" and cannot tell a missing env var from a rejected
+      // password — the invite looks fine while the invitee gets nothing.
+      emailReason: mail.reason,
+      emailError: mail.error,
     }, 201);
   }
 

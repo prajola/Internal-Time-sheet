@@ -19,13 +19,76 @@ interface SendOpts {
   replyTo?: string;
 }
 
-export async function sendMail(opts: SendOpts): Promise<{ ok: boolean; error?: string }> {
+/**
+ * Why a send failed, in a form the UI can act on. `emailSent: false`
+ * alone is useless to an admin — "not configured" and "Gmail rejected
+ * the password" need completely different fixes, so we distinguish them.
+ */
+export type MailFailure =
+  | "not_configured"   // env vars absent — deployment setup problem
+  | "auth_rejected"    // credentials present but Gmail refused them
+  | "timeout"          // SMTP unreachable within budget (common in serverless)
+  | "rejected"         // Gmail accepted the session but refused the recipient
+  | "unknown";
+
+export interface SendResult {
+  ok: boolean;
+  reason?: MailFailure;
+  /** Human-readable detail, safe to show an admin. Never contains the password. */
+  error?: string;
+}
+
+/** True when both halves of the credential are present in this environment. */
+export function isMailConfigured(): boolean {
+  return Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+}
+
+/** The sending mailbox, for diagnostics. Returns null when unconfigured. */
+export function mailSender(): string | null {
+  return process.env.GMAIL_USER || null;
+}
+
+function classify(err: unknown): { reason: MailFailure; error: string } {
+  const e = err as { code?: string; responseCode?: number; message?: string };
+  const msg = e?.message || String(err);
+  const code = e?.code || "";
+
+  // Gmail answers a bad App Password with 535; nodemailer surfaces EAUTH.
+  if (code === "EAUTH" || e?.responseCode === 535) {
+    return {
+      reason: "auth_rejected",
+      error:
+        "Gmail rejected the credentials. GMAIL_APP_PASSWORD must be a 16-character " +
+        "App Password (no spaces) for the GMAIL_USER mailbox, with 2-Step Verification on.",
+    };
+  }
+  if (code === "ETIMEDOUT" || code === "ECONNECTION" || code === "ESOCKET" || code === "ECONNREFUSED") {
+    return {
+      reason: "timeout",
+      error: `Could not reach smtp.gmail.com (${code}). The mail server was unreachable from this deployment.`,
+    };
+  }
+  if (e?.responseCode && e.responseCode >= 500) {
+    return { reason: "rejected", error: `Gmail refused the message: ${msg}` };
+  }
+  return { reason: "unknown", error: msg };
+}
+
+export async function sendMail(opts: SendOpts): Promise<SendResult> {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
   if (!user || !pass) {
-    console.warn("[email] GMAIL_USER/GMAIL_APP_PASSWORD missing — email skipped");
+    const missing = [
+      !user && "GMAIL_USER",
+      !pass && "GMAIL_APP_PASSWORD",
+    ].filter(Boolean).join(" and ");
+    console.warn(`[email] ${missing} missing — email skipped`);
     console.log("[email] would-send:", JSON.stringify({ to: opts.to, subject: opts.subject }));
-    return { ok: false, error: "SMTP not configured" };
+    return {
+      ok: false,
+      reason: "not_configured",
+      error: `${missing} not set on this deployment, so no email was sent.`,
+    };
   }
 
   const transporter = nodemailer.createTransport({
@@ -33,10 +96,16 @@ export async function sendMail(opts: SendOpts): Promise<{ ok: boolean; error?: s
     port: 465,
     secure: true,
     auth: { user, pass },
+    // Serverless functions are killed at the platform timeout (10s on Hobby).
+    // Without explicit budgets nodemailer waits ~2min, so a blocked egress
+    // route takes the whole request down with no usable error. Fail first.
+    connectionTimeout: 7000,
+    greetingTimeout: 5000,
+    socketTimeout: 7000,
   });
 
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: `"KubeGraf Internal Time Sheet" <${user}>`,
       to: opts.to,
       replyTo: opts.replyTo,
@@ -44,11 +113,60 @@ export async function sendMail(opts: SendOpts): Promise<{ ok: boolean; error?: s
       text: opts.text,
       html: opts.html,
     });
+    // Gmail can accept a session yet silently drop a recipient; treat an
+    // empty `accepted` list as a failure rather than reporting success.
+    const accepted = (info as { accepted?: string[] }).accepted ?? [];
+    if (accepted.length === 0) {
+      console.error("[email] no recipient accepted for", opts.to);
+      return {
+        ok: false,
+        reason: "rejected",
+        error: `Gmail did not accept ${opts.to} as a recipient.`,
+      };
+    }
+    console.log(`[email] sent to ${opts.to} ("${opts.subject}")`);
     return { ok: true };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendMail failed:", msg);
-    return { ok: false, error: msg };
+    const { reason, error } = classify(err);
+    console.error(`[email] sendMail failed (${reason}):`, error);
+    return { ok: false, reason, error };
+  } finally {
+    transporter.close();
+  }
+}
+
+/**
+ * Check the SMTP credentials without sending anything. Used by the
+ * email diagnostics endpoint so an admin can tell whether a deployment
+ * can send mail *before* an invite silently fails.
+ */
+export async function verifyMail(): Promise<SendResult> {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) {
+    const missing = [
+      !user && "GMAIL_USER",
+      !pass && "GMAIL_APP_PASSWORD",
+    ].filter(Boolean).join(" and ");
+    return { ok: false, reason: "not_configured", error: `${missing} not set on this deployment.` };
+  }
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: { user, pass },
+    connectionTimeout: 7000,
+    greetingTimeout: 5000,
+    socketTimeout: 7000,
+  });
+  try {
+    await transporter.verify();
+    return { ok: true };
+  } catch (err) {
+    const { reason, error } = classify(err);
+    return { ok: false, reason, error };
+  } finally {
+    transporter.close();
   }
 }
 
