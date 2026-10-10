@@ -351,10 +351,50 @@ export default function AdminUsers() {
   );
 }
 
+type EmailReason = "not_configured" | "auth_rejected" | "timeout" | "rejected" | "unknown";
+
 interface InviteResult {
   invitation: { id: string; email: string; role: Role };
   setupLink: string;
   emailSent: boolean;
+  emailReason?: EmailReason;
+  emailError?: string;
+}
+
+/**
+ * What an admin should actually do about a failed invite email. The old
+ * UI claimed "not configured" for every failure, which sent people to
+ * the wrong fix when the real cause was a rejected password or a
+ * blocked SMTP route.
+ */
+function emailFailureHelp(reason: EmailReason | undefined): { title: string; fix: string } {
+  switch (reason) {
+    case "not_configured":
+      return {
+        title: "No email was sent — delivery isn't configured on this deployment.",
+        fix: "Set GMAIL_USER and GMAIL_APP_PASSWORD in the Vercel project (Production scope) and redeploy.",
+      };
+    case "auth_rejected":
+      return {
+        title: "No email was sent — Gmail rejected the sending credentials.",
+        fix: "GMAIL_APP_PASSWORD must be a 16-character App Password with no spaces, for the GMAIL_USER mailbox, with 2-Step Verification enabled.",
+      };
+    case "timeout":
+      return {
+        title: "No email was sent — the mail server was unreachable.",
+        fix: "smtp.gmail.com:465 could not be reached from this deployment. Retry; if it persists, outbound SMTP is being blocked.",
+      };
+    case "rejected":
+      return {
+        title: "No email was sent — Gmail refused the recipient.",
+        fix: "Check the address is spelled correctly and can receive external mail.",
+      };
+    default:
+      return {
+        title: "No email was sent.",
+        fix: "Send the link below to them directly.",
+      };
+  }
 }
 
 function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => void }) {
@@ -401,7 +441,11 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
         <div className="ko-card-glow p-4 sm:p-6 w-full max-w-md ko-modal-body">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-display text-xl inline-flex items-center gap-2">
-              <Check size={18} className="text-emerald-600" /> Invite created
+              {result.emailSent ? (
+                <><Check size={18} className="text-emerald-600" /> Invite sent</>
+              ) : (
+                <><AlertCircle size={18} className="text-amber-600" /> Invite created — not emailed</>
+              )}
             </h2>
             <button type="button" className="ko-btn-ghost h-8 w-8 px-0 inline-flex items-center justify-center" onClick={closeAndRefresh}><X size={14} /></button>
           </div>
@@ -434,15 +478,28 @@ function InviteDialog({ onClose, onSent }: { onClose: () => void; onSent: () => 
           </div>
 
           <div className={
-            "mt-4 rounded-md border p-3 text-[12px] inline-flex items-start gap-2 " +
+            "mt-4 rounded-md border p-3 text-[12px] flex items-start gap-2 " +
             (result.emailSent
               ? "bg-emerald-50 border-emerald-200 text-emerald-900"
               : "bg-amber-50 border-amber-200 text-amber-900")
           }>
             {result.emailSent ? <Mail size={13} className="mt-0.5 flex-shrink-0" /> : <AlertCircle size={13} className="mt-0.5 flex-shrink-0" />}
-            {result.emailSent
-              ? <span>Also emailed to <span className="font-medium">{result.invitation.email}</span> in case they check their inbox.</span>
-              : <span>Email delivery isn't configured on this deployment — paste the link above into Slack/WhatsApp/SMS and send it to them yourself.</span>}
+            {result.emailSent ? (
+              <span>Emailed to <span className="font-medium">{result.invitation.email}</span>.</span>
+            ) : (
+              <div className="min-w-0">
+                <div className="font-medium">{emailFailureHelp(result.emailReason).title}</div>
+                <div className="mt-1">{emailFailureHelp(result.emailReason).fix}</div>
+                <div className="mt-1.5">
+                  They have <span className="font-medium">not</span> been notified — send them the link above.
+                </div>
+                {result.emailError && (
+                  <div className="mt-1.5 font-mono text-[11px] text-amber-800 break-words">
+                    {result.emailError}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end mt-5">
