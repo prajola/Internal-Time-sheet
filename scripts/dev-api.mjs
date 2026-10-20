@@ -79,7 +79,14 @@ function decorateResponse(res) {
     return res;
   };
   res.send = (data) => {
-    res.end(typeof data === "string" ? data : JSON.stringify(data));
+    // Match Vercel's runtime: strings and binary bodies pass through
+    // untouched, everything else is JSON. Stringifying a Buffer here
+    // would silently corrupt binary responses (e.g. the .xlsx export).
+    if (typeof data === "string" || Buffer.isBuffer(data) || data instanceof Uint8Array) {
+      res.end(data);
+    } else {
+      res.end(JSON.stringify(data));
+    }
     return res;
   };
   res.redirect = (location, code = 302) => {
