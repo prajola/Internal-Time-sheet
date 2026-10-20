@@ -8,7 +8,14 @@
     "dev:vercel": "vercel dev --listen 5050",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "db:migrate": "tsx scripts/migrate-airtable-to-xlsx.ts",
+    "db:verify": "tsx scripts/verify-xlsx-store.ts",
+    "db:compact": "tsx scripts/compact-xlsx-store.ts",
+    "db:import-csv": "tsx scripts/import-airtable-csv.ts",
+    "sheets:setup": "tsx scripts/setup-google-sheet.ts",
+    "sheets:verify": "tsx scripts/verify-sheets-store.ts",
+    "sheets:compact": "tsx scripts/compact-sheets-store.ts"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -34,6 +41,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.3"
   }
