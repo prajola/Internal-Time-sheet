@@ -4,53 +4,43 @@
  *
  *   SMOKE_ALLOW_WIPE=1 node --env-file=.env.local scripts/smoke-test.mjs
  *
- * ⚠️  DESTRUCTIVE: deletes every row from every Airtable table in the
- *     base configured by AIRTABLE_BASE_ID before running. Will refuse
- *     to run unless SMOKE_ALLOW_WIPE=1 is set in the environment, to
- *     prevent accidentally wiping production data.
+ * ⚠️  DESTRUCTIVE: deletes every snapshot and journal entry under the
+ *     store prefix configured by XLSX_STORE_PREFIX (default `db`)
+ *     before running. Will refuse to run unless SMOKE_ALLOW_WIPE=1 is
+ *     set in the environment, to prevent accidentally wiping
+ *     production data.
  *
- * If your dev .env.local points at the SAME Airtable base as
- * production (the default when you run `vercel env pull`), running
- * this test will wipe your production data. Either create a separate
- * "dev" base and point dev at that, or treat this test as a deliberate
- * "I want to reset everything" tool only.
+ * If your dev .env.local leaves XLSX_STORE_PREFIX unset (the default
+ * after `vercel env pull`), this wipes the SAME `db/` namespace
+ * production uses. Set XLSX_STORE_PREFIX=dev in .env.local so local
+ * runs get their own data, or treat this test as a deliberate "I want
+ * to reset everything" tool only.
  *
  * Reports pass/fail per step; never throws; always exits 0/1.
  */
-const BASE = process.env.SMOKE_BASE || "http://localhost:5050";
-const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const TABLES = ["Users", "Tasks", "TimeEntries", "Invitations", "Notifications", "Queries"];
+import { list, del } from "@vercel/blob";
 
-async function wipeAirtable() {
-  if (!AIRTABLE_TOKEN || !AIRTABLE_BASE_ID) {
-    console.log("AIRTABLE_TOKEN/AIRTABLE_BASE_ID not set — skipping wipe (run with --env-file=.env.local).");
+const BASE = process.env.SMOKE_BASE || "http://localhost:5050";
+const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+const STORE_PREFIX = (process.env.XLSX_STORE_PREFIX || "db").replace(/\/+$/, "");
+
+async function wipeStore() {
+  if (!BLOB_TOKEN) {
+    console.log("BLOB_READ_WRITE_TOKEN not set — skipping wipe (run with --env-file=.env.local).");
     return;
   }
-  const headers = { Authorization: `Bearer ${AIRTABLE_TOKEN}` };
-  for (const t of TABLES) {
-    let offset;
-    do {
-      const qs = new URLSearchParams({ pageSize: "100" });
-      if (offset) qs.set("offset", offset);
-      const r = await fetch(
-        `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(t)}?${qs}`,
-        { headers },
-      );
-      if (!r.ok) { console.log(`  (could not list ${t}: ${r.status})`); break; }
-      const data = await r.json();
-      const ids = (data.records || []).map((r) => r.id);
-      for (let i = 0; i < ids.length; i += 10) {
-        const slice = ids.slice(i, i + 10);
-        const delQs = slice.map((id) => `records[]=${encodeURIComponent(id)}`).join("&");
-        await fetch(
-          `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(t)}?${delQs}`,
-          { method: "DELETE", headers },
-        );
-      }
-      offset = data.offset;
-    } while (offset);
+  const paths = [];
+  let cursor;
+  do {
+    const r = await list({ prefix: `${STORE_PREFIX}/`, cursor, limit: 1000, token: BLOB_TOKEN });
+    paths.push(...r.blobs.map((b) => b.pathname));
+    cursor = r.hasMore ? r.cursor : undefined;
+  } while (cursor);
+
+  for (let i = 0; i < paths.length; i += 100) {
+    await del(paths.slice(i, i + 100), { token: BLOB_TOKEN });
   }
+  console.log(`  wiped ${paths.length} blob(s) under ${STORE_PREFIX}/`);
 }
 
 const pass = [];
@@ -101,22 +91,25 @@ async function expect(label, fn) {
 
 async function main() {
   if (process.env.SMOKE_ALLOW_WIPE !== "1") {
-    console.error("ERROR: scripts/smoke-test.mjs wipes ALL Airtable rows in the configured base.");
+    console.error("ERROR: scripts/smoke-test.mjs wipes the ENTIRE store under the configured prefix.");
     console.error("Refusing to run without an explicit opt-in to avoid destroying prod data.");
     console.error("");
-    console.error("If you really want to run it (e.g. against a dev-only base), set the");
+    console.error("If you really want to run it (e.g. against a dev-only prefix), set the");
     console.error("environment variable SMOKE_ALLOW_WIPE=1, like so:");
     console.error("");
     console.error("  SMOKE_ALLOW_WIPE=1 node --env-file=.env.local scripts/smoke-test.mjs");
     console.error("");
-    console.error("Current target Airtable base:", AIRTABLE_BASE_ID || "(unset)");
+    console.error(`Current target store prefix: ${STORE_PREFIX}/`);
+    if (STORE_PREFIX === "db") {
+      console.error("  ⚠  that is the PRODUCTION namespace — set XLSX_STORE_PREFIX=dev first.");
+    }
     process.exit(2);
   }
 
   console.log(`Target: ${BASE}`);
-  console.log(`Airtable base to wipe: ${AIRTABLE_BASE_ID}`);
-  console.log("Wiping Airtable tables for a clean slate…");
-  await wipeAirtable();
+  console.log(`Store prefix to wipe: ${STORE_PREFIX}/`);
+  console.log("Wiping the store for a clean slate…");
+  await wipeStore();
 
   // Ping dev server first
   try {
