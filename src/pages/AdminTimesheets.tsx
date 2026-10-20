@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Download, CalendarRange, Clock, Search as SearchIcon, XCircle, Filter,
-  Check, CheckCheck,
+  Check, CheckCheck, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "../components/Toast";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
-import { fmtDateTime, fmtMinutes, todayYmd } from "../lib/format";
+import { DayPickerCalendar, type DayActivity } from "../components/DayPickerCalendar";
+import { addDays } from "../lib/planner";
+import { fmtDate, fmtDateTime, fmtMinutes, todayYmd } from "../lib/format";
 import { downloadCsv as csvDownload, dateStampedName } from "../lib/csv";
 import type { Task, TimeEntry, User } from "../types";
 
-type Period = "all" | "today" | "week" | "month" | "year" | "custom";
+type Period = "all" | "today" | "yesterday" | "week" | "month" | "year" | "custom";
 
 export default function AdminTimesheets() {
   const { err, ok: okToast } = useToast();
@@ -27,6 +29,7 @@ export default function AdminTimesheets() {
   const [taskId, setTaskId] = useState<string>("all");
   const [period, setPeriod] = useState<Period>("month");
   const [customDay, setCustomDay] = useState<string>("");
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -44,7 +47,14 @@ export default function AdminTimesheets() {
   }
   useEffect(() => { load(); }, []);
 
-  const filtered = useMemo(() => {
+  /**
+   * Entries matching every filter *except* the period.
+   *
+   * Split out so the day calendar can show activity across all dates
+   * while still respecting the user/task/search narrowing — otherwise
+   * it would advertise days that the active filters exclude.
+   */
+  const scoped = useMemo(() => {
     const q = search.trim().toLowerCase();
     return entries.filter((e) => {
       if (userId !== "all" && e.userId !== userId) return false;
@@ -59,6 +69,29 @@ export default function AdminTimesheets() {
         if (!hay.includes(q)) return false;
       }
 
+      return true;
+    });
+  }, [entries, users, tasks, search, userId, taskId]);
+
+  /** Entry count + total minutes per YYYY-MM-DD, for the day calendar. */
+  const dayActivity = useMemo(() => {
+    const m = new Map<string, DayActivity>();
+    for (const e of scoped) {
+      const key = e.startedAt?.slice(0, 10);
+      if (!key) continue;
+      const cur = m.get(key);
+      if (cur) {
+        cur.count++;
+        cur.minutes += e.durationMinutes || 0;
+      } else {
+        m.set(key, { count: 1, minutes: e.durationMinutes || 0 });
+      }
+    }
+    return m;
+  }, [scoped]);
+
+  const filtered = useMemo(() => {
+    return scoped.filter((e) => {
       if (period !== "all") {
         const started = e.startedAt;
         if (!started) return false;
@@ -67,6 +100,8 @@ export default function AdminTimesheets() {
 
         if (period === "today") {
           if (started.slice(0, 10) !== todayYmd()) return false;
+        } else if (period === "yesterday") {
+          if (started.slice(0, 10) !== addDays(todayYmd(), -1)) return false;
         } else if (period === "week") {
           const start = startOfWeek(new Date()).getTime();
           const end = start + 7 * 24 * 3600 * 1000;
@@ -87,7 +122,7 @@ export default function AdminTimesheets() {
 
       return true;
     });
-  }, [entries, users, tasks, search, userId, taskId, period, customDay]);
+  }, [scoped, period, customDay]);
 
   const total = useMemo(
     () => filtered.reduce((s, e) => s + (e.durationMinutes || 0), 0),
@@ -111,12 +146,28 @@ export default function AdminTimesheets() {
     return n;
   }, [search, userId, taskId, period]);
 
+  /**
+   * Switching to "Specific day" with no day chosen used to show every
+   * entry, which reads as a broken filter. Default it to today so the
+   * calendar always opens on a real selection.
+   */
+  function selectPeriod(next: Period) {
+    setPeriod(next);
+    if (next === "custom") {
+      if (!customDay) setCustomDay(todayYmd());
+      setCalendarOpen(true);
+    } else {
+      setCalendarOpen(false);
+    }
+  }
+
   function clearFilters() {
     setSearch("");
     setUserId("all");
     setTaskId("all");
     setPeriod("all");
     setCustomDay("");
+    setCalendarOpen(false);
   }
 
   async function acknowledge(entryId: string, which: "clock-in" | "clock-out") {
@@ -226,17 +277,18 @@ export default function AdminTimesheets() {
               </div>
               <div className="inline-flex bg-gray-100 rounded-md p-0.5 flex-wrap">
                 {([
-                  ["all",    "All time"],
-                  ["today",  "Today"],
-                  ["week",   "This week"],
-                  ["month",  "This month"],
-                  ["year",   "This year"],
-                  ["custom", "Specific day"],
+                  ["all",       "All time"],
+                  ["today",     "Today"],
+                  ["yesterday", "Yesterday"],
+                  ["week",      "This week"],
+                  ["month",     "This month"],
+                  ["year",      "This year"],
+                  ["custom",    "Specific day"],
                 ] as const).map(([key, label]) => (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setPeriod(key)}
+                    onClick={() => selectPeriod(key)}
                     className={
                       "h-8 px-3 rounded text-[12px] font-medium transition " +
                       (period === key
@@ -253,12 +305,35 @@ export default function AdminTimesheets() {
             {period === "custom" && (
               <div className="w-full sm:w-auto">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-gray-500 mb-1.5">Day</div>
-                <input
-                  type="date"
-                  value={customDay}
-                  onChange={(e) => setCustomDay(e.target.value)}
-                  className="ko-input h-9 w-full sm:w-44"
-                />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCustomDay(addDays(customDay || todayYmd(), -1))}
+                    className="ko-btn-ghost h-9 w-9 px-0 inline-flex items-center justify-center"
+                    aria-label="Previous day"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarOpen((o) => !o)}
+                    aria-expanded={calendarOpen}
+                    className="ko-input h-9 min-w-[11rem] inline-flex items-center justify-between gap-2 text-left text-[13px]"
+                  >
+                    <span className={customDay ? "text-gray-900" : "text-gray-400"}>
+                      {customDay ? fmtDate(`${customDay}T00:00:00`) : "Pick a day"}
+                    </span>
+                    <CalendarRange size={13} className="text-gray-400 shrink-0" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomDay(addDays(customDay || todayYmd(), 1))}
+                    className="ko-btn-ghost h-9 w-9 px-0 inline-flex items-center justify-center"
+                    aria-label="Next day"
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -275,6 +350,16 @@ export default function AdminTimesheets() {
               </div>
             </div>
           </div>
+
+          {period === "custom" && calendarOpen && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <DayPickerCalendar
+                value={customDay}
+                onChange={setCustomDay}
+                activity={dayActivity}
+              />
+            </div>
+          )}
         </div>
       )}
 

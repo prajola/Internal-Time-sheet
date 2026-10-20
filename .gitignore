@@ -8,3 +8,12 @@ dist
 .DS_Store
 .env*.local
 tsconfig.tsbuildinfo
+
+# Local migration output — may contain password hashes.
+airtable-export.xlsx
+airtable-csv/
+
+# Airtable migration watcher artefacts
+.airtable-migrate.log
+.airtable-migrate.launchd.log
+.airtable-migrate.done

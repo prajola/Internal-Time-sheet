@@ -15,6 +15,7 @@ import {
   findInvitationByEmail,
   findUserByEmail,
 } from "../_lib/db.js";
+import { exportWorkbook } from "../_lib/xlsx-store.js";
 import {
   uuid,
   nowIso,
@@ -69,6 +70,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         reason: result.reason,
         error: result.error,
       });
+    }
+
+    // GET /api/users?export=workbook — admin-only download of the whole
+    // store as a single .xlsx. This replaces the old "download each
+    // Airtable table as CSV" backup routine (PRODUCTION.md §4). Folded
+    // in here for the same function-ceiling reason as the block above.
+    if (req.query.export === "workbook") {
+      const admin = await requireAdmin(req, res);
+      if (!admin) return;
+      const buf = await exportWorkbook();
+      const stamp = nowIso().slice(0, 10);
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader("Content-Disposition", `attachment; filename="timesheet-${stamp}.xlsx"`);
+      res.setHeader("Cache-Control", "no-store");
+      // end(), not send() — send() stringifies anything non-string in
+      // the local dev shim, which would corrupt the workbook.
+      res.status(200).end(buf);
+      return;
     }
 
     const me = await requireAuth(req, res);
